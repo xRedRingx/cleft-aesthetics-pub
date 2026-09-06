@@ -1,0 +1,91 @@
+# PHASE 25 -- THE THREE CONTRASTS
+#
+# phase25.EXIT_CRITERIA (LOCKED 2026-09-02), phase25.THE_TWO_ARMS_RULED.
+# Two primaries (each arm vs the 0.2520 probe) and one secondary (D2 vs D1), from phase25.contrast_family() -- **the pair list is not a field here**. phase7b.paired_comparison UNCHANGED, full criterion, BOTH conditions recorded.
+#
+# **BLOCKING, AND IT IS NOT CLOSED BY THIS FILE**: the checkpoint tag below
+# resolved in timm 1.0.27 under Python 3.13 on the laptop. **The cluster is
+# pinned at timm 1.0.7 and nothing about 1.0.7's model index is verifiable
+# from here** (phase25.THE_CHECKPOINTS_RESOLVED). If the tag does not
+# resolve in the pinned image this config CANNOT run, and the fix is a
+# decision about the pin, not an edit here.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p25_contrasts.yaml"
+
+schema_version: 1
+phase: p25
+tier: keeper
+seed: 1337
+# **NO PLACEHOLDERS.** Both arm rollups were filled 2026-09-02 from
+# declare_inputs.py. They are keyed in the generator BY RUN
+# DIRECTORY NAME, so a crossed fill -- each contrast reading the
+# other arm -- is a mismatch the generator refuses rather than a
+# swap that would compute ordinary numbers for the wrong arms.
+# The two runs hold 645 files each and differ by 136 bytes.
+# Their PATHS
+# came from --run-dirs (the names are the cluster's and are not
+# derivable here -- run_names records that the obvious job-id rule
+# holds for 22 of 83 directories and fails for 61). Fill the two
+# rollups from declare_inputs.py, never from a chat log.
+inputs:
+- name: manifest_v1
+  path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+  rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+- name: p7_d1_vit_b16_imagenet_g1
+  path: /home/user/codex/cleft-aesthetics/runs/keeper/p7/p7_d1_vit_b16_imagenet_g1__3f71a6a9__p7-d1-vit-imagenet
+  rollup_sha256: 4573e984a20c7771e4ebbda1b4f17e52eb63ea33c178be1a76a1af0ffd2873a2
+- name: p25_arm_d2
+  path: /home/user/codex/cleft-aesthetics/runs/keeper/p25/p25_arm_d2__2d54e77a__p25-arm-d2-2
+  rollup_sha256: eed3b646040c9f14a5d056b3d34a3106fddf8f50e143b214edfe592996b7dec8
+- name: p25_arm_d1
+  path: /home/user/codex/cleft-aesthetics/runs/keeper/p25/p25_arm_d1__2d54e77a__p25-arm-d1-2
+  rollup_sha256: 9b30f39203264af154f7130ff9d1f7ba589d1d2ee26f2a06c8a38478a4f4277c
+
+task:
+  kind: p25_contrasts
+  manifest_artifact: manifest_v1
+
+  # The three contrasts are phase25.contrast_family()'s, not this
+  # file's. What the config declares is which arms are readable.
+  arms:
+  - name: probe
+    input: p7_d1_vit_b16_imagenet_g1
+    seeds:
+    - 1337
+    - 2024
+    - 7
+    - 99
+    - 12345
+    csv: predictions
+    n_patients: 237
+  - name: p25_arm_d2
+    input: p25_arm_d2
+    seeds:
+    - 1337
+    - 2024
+    - 7
+    - 99
+    - 12345
+    csv: predictions
+    n_patients: 237
+  - name: p25_arm_d1
+    input: p25_arm_d1
+    seeds:
+    - 1337
+    - 2024
+    - 7
+    - 99
+    - 12345
+    csv: predictions
+    n_patients: 237
+
+  seeds:
+  - 1337
+  - 2024
+  - 7
+  - 99
+  - 12345
+  n_boot: 10000
+  expect_contrasts: 3
+  expect_patients: 237

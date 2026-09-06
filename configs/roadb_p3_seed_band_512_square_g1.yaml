@@ -1,0 +1,59 @@
+# ROAD B PHASE 3 — 512 SQUARE G1: THE RUN THAT DECIDES THE AXIS'S SHAPE
+#
+# This was going to confirm the band (SEED_BAND_RESOLVED: one planning band,
+# 0.016739, per the pre-registered rule). It still does -- but 768 scored
+# 0.0898 against 224's 0.2319, so this run now also decides the shape of the
+# resolution axis (roadb.RESOLUTION_DROP_PENDING_VERIFICATION):
+#
+#   * 512 near 224      -> the curve is flat, then collapses at 768;
+#   * 512 in between    -> the decline is monotone and the axis trends DOWN.
+#
+# Either way, the opposite of what Branch 1 predicted. The 768 observation is
+# NOT a finding until its extraction report is verified (input_size,
+# dynamic_input, embedding_dim) -- read this run's report the same way before
+# reading its mean.
+#
+# **Road A's ten seeds**, so per-seed values pair across the whole series:
+# 224 (gate 2), 512, 768 share their inner-val splits seed for seed.
+#
+# batch_size serves extraction AND head training; if extraction OOMs at a
+# GPU fraction, raise the fraction rather than lowering the field.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/roadb_p3_seed_band_512_square_g1.yaml"
+
+schema_version: 1
+phase: roadb_p3
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: roadb_512_square_g1_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/roadb_512_square_g1_v1
+    rollup_sha256: fa0ba0269491f33c055463081b81579f7991670860873494c518aa0c87865fca
+
+task:
+  kind: train_cv
+
+  manifest_artifact: manifest_v1
+  staged_artifact: roadb_512_square_g1_v1
+
+  # Field-for-field the p3_train_cv procedure -- the test asserts it.
+  trainable: head
+  geometry: g1
+  label: mean
+  backbone: vit_b16
+  max_epochs: 40
+  patience: 5
+  inner_val_frac: 0.2
+  monitor: inner_val_mse
+  learning_rate: 0.001
+  weight_decay: 0.01
+  batch_size: 32
+
+  # Road A's gate-2 seeds, verbatim -- pairing across the whole series.
+  seeds: [1337, 2024, 7, 99, 12345, 31337, 4242, 8675309, 271828, 161803]

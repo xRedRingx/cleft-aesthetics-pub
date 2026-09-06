@@ -1,0 +1,14 @@
+{
+  "artifact": "smoke/v1",
+  "generated_by": "scripts/make_smoke_input.py",
+  "generator_git_sha": null,
+  "n_samples": 64,
+  "numpy_version": "2.2.6",
+  "payload_files": {
+    "values.csv": "add55cfae4df6bebe799c267ed0d053a704d0aa90f6bb9c41e57a3873bdff22b"
+  },
+  "payload_rollup": "0897fe78e2ffbea332fd040e59ab556fdbd61d4e00d5e16c54cc666f70d45ede",
+  "payload_total_bytes": 1623,
+  "purpose": "synthetic input for configs/smoke.yaml; no real data",
+  "seed": 1337
+}

@@ -1,0 +1,57 @@
+# ROAD B PHASE 3 — THE 224 REPLICATE: ROAD A'S ARTIFACT, A DISJOINT TEN SEEDS
+#
+# The 224 end of the axis already has a band -- Road A's gate 2, SD 0.0137 on
+# this same artifact with this same procedure. **Re-running Road A's seeds
+# here would reproduce it bit-for-bit (determinism) and measure nothing.**
+#
+# This disjoint draw buys two things in one run (roadb.SEED_BAND_DESIGN):
+#
+#   * a second, INDEPENDENT estimate of the same band -- the empirical noise
+#     floor for the agreement test. Two ten-seed SDs of one procedure can
+#     differ by ~1.4x on sampling noise alone (F(9,9)); seeing that on real
+#     data is what stops a 1.4x "divergence" at 768 being over-read;
+#   * the apparatus check: Road B's sweep machinery reproducing the gate-2
+#     regime on the gate-2 artifact, before the 768 number is trusted.
+#
+# The decision rule is PRE-REGISTERED in roadb.SEED_BAND_DESIGN -- read it
+# before reading either sweep's numbers.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/roadb_p3_seed_band_224_square_g1.yaml"
+
+schema_version: 1
+phase: roadb_p3
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+task:
+  kind: train_cv
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+
+  # Field-for-field the p3_train_cv procedure -- the test asserts it.
+  trainable: head
+  geometry: g1
+  label: mean
+  backbone: vit_b16
+  max_epochs: 40
+  patience: 5
+  inner_val_frac: 0.2
+  monitor: inner_val_mse
+  learning_rate: 0.001
+  weight_decay: 0.01
+  batch_size: 32
+
+  # DISJOINT from Road A's gate-2 list by design -- the test asserts the
+  # intersection is empty.
+  seeds: [11, 421, 907, 5077, 21323, 68111, 150151, 777001, 424243, 999983]

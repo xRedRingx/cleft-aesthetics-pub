@@ -1,0 +1,32 @@
+# ROAD B PHASE 6 — GATE 2: THE PRETRAIN PATH BUILDS AT EVERY SIZE
+#
+# The last gate before the Phase 6 configs. TorchPretrainModel.reset built
+# its backbone with NO input_size -- a 512/768 pretraining run would have
+# died at the ViT/Swin 224 asserts after submission. It now derives the size
+# from the training features' own shape (the extract_embeddings pattern);
+# this run confirms on the pinned image.
+#
+# **SCOPE -- a pass is exactly this and no more:**
+#   COVERED      construction of all four backbones through the pretrain
+#                path at 224/512/768; the optimiser registering every model
+#                parameter; the trainable count IDENTICAL across sizes per
+#                backbone (resizing must add or drop nothing learned).
+#   NOT COVERED  whether training is STABLE at 512/768 with interpolated
+#                position grids. That is Phase 6's first pretraining run --
+#                an experiment with its own record, not a gate.
+#
+# No inputs: synthetic features; the gate builds and registers, nothing else.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/roadb_p6_pretrain_build_gate.yaml"
+
+schema_version: 1
+phase: roadb_p6
+tier: keeper
+seed: 1337
+
+task:
+  kind: roadb_pretrain_build_gate
+  sizes: [224, 512, 768]
+  backbones: [vit_b16, swin_b, srgnn, agnet]
+  pretrained: true

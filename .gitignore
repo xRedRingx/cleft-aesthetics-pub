@@ -1,0 +1,74 @@
+# Run outputs live on NFS and are never committed. They are immutable and
+# append-only; the run directory itself is the record.
+runs/
+
+# Data artifacts are versioned directories on NFS, not git objects. The one
+# exception is the synthetic smoke input, which is tiny, contains no real data,
+# and must travel with the repo because configs/smoke.yaml declares its hash.
+data/*
+!data/smoke/
+!data/smoke/**
+
+# Clinical data must never enter version control under any name.
+*.xlsx
+*.xls
+clinical/
+cohort/
+
+# Credentials. The deploy keypair used to pull this repo onto the cluster sits in
+# the working tree, and `git add -A` would otherwise push the PRIVATE half to
+# GitHub. Keys belong in ~/.ssh, not in the repo.
+cleft-deploy
+cleft-deploy.pub
+id_ed25519*
+id_rsa*
+*.pem
+*_rsa
+*_ed25519
+.env
+.netrc
+
+# Patient-keyed outputs are CLUSTER-ONLY. Blocked by name as well as by
+# directory, because a stray copy in the repo root is the likely mistake.
+*predictions*.csv
+*oof*.csv
+*per_image*.csv
+*patient*.csv
+
+# Model weights and checkpoints
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.safetensors
+checkpoints/
+
+# Images
+*.jpg
+*.jpeg
+*.png
+*.tif
+*.tiff
+*.bmp
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+
+# Never ignore source, whatever a pattern above matched.
+!**/*.py

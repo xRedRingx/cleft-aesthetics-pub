@@ -1,0 +1,44 @@
+# PHASE 1b -- THE PANEL'S ICCs, beside the banked Spearman-Brown 0.8158.
+#
+# record_audit.ICC_PREDICTION_REGISTERED (registered BEFORE this runs),
+# record_audit.ICC_FORM_DISTINCTION, record_audit.THE_KAPPA_LIMITATION.
+#
+# **Why the SCORE SHEET and not the manifest.** ICC(2,k) decomposes
+# BETWEEN-RATER variance, so it needs to know which rater gave which
+# grade. The manifest's soft_1..soft_5 recover the per-patient multiset
+# exactly and lose rater identity, so they cannot answer this -- which is
+# the one case phase21.INTER_RATER_DISAGREEMENT_MEASURED's recovery does
+# not cover.
+#
+# **It refuses before computing an ICC** if the recomputed Fleiss, QWK
+# and mean inter-rater r do not match the banked 237 constants: a
+# different matrix would give an ICC that is not comparable to 0.8158,
+# which is the whole point of computing it.
+#
+# DESCRIPTIVE. No ledger row, no phase opened -- this is a record
+# correction and a reporting form.
+#
+# FULLY DECLARED; both hashes are copied byte-identically from
+# configs/p10_rater_screen.yaml, which already declares both artifacts.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p1b_rater_icc.yaml"
+
+schema_version: 1
+phase: p1b
+tier: keeper
+seed: 1337
+inputs:
+- name: manifest_v1
+  path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+  rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+- name: scoresheet_primary
+  path: ${CLEFT_SCORESHEET}
+  rollup_sha256: 47a472bd4e5162c8b8fcb5fefc3e7bb4e146febd19c5709172515d3b9bce704d
+
+task:
+  kind: rater_icc
+  manifest_artifact: manifest_v1
+  scoresheet_artifact: scoresheet_primary
+  expect_patients: 237
+  expect_raters: 5

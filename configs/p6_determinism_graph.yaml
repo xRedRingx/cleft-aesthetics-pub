@@ -1,0 +1,163 @@
+# PHASE 6 — DETERMINISM RE-VERIFICATION, THE GRAPH HALF.
+#
+# **Run this config TWICE, unchanged.** The two runs must agree on
+# `fingerprint.predictions_sha256` in metrics.json. That single string is the
+# comparison: predictions.csv is CLUSTER-ONLY, so "the two files are
+# byte-identical" would otherwise be a claim only someone on the cluster could
+# check, by eye, on two large files.
+#
+# ----------------------------------------------------------------------------
+# WHY A SEPARATE CONFIG FROM THE SEED BAND
+# ----------------------------------------------------------------------------
+# The band ran ten seeds in ONE job, which is the right shape for measuring
+# spread and the wrong shape for measuring determinism: it varies the thing
+# whose effect is being held constant, and it shares one process. Determinism
+# is two SEPARATE jobs at the SAME seed — different pods, same code, same
+# inputs. So this is the band arm with `seeds: [1337]` and nothing else
+# changed.
+#
+# It is deliberately the REGIME (`trainable: graph_layers`), not either probe.
+# Gate 1 tests the harness, and what the harness gained since gate 1 was
+# measured is the graph-training path — trained graph layers over packed
+# feature maps, warm-started from a checkpoint. Verifying determinism on a
+# frozen probe would exercise the classifier and leave that path untested.
+#
+# ----------------------------------------------------------------------------
+# WHAT THIS DOES AND DOES NOT COVER
+# ----------------------------------------------------------------------------
+# COVERS: the graph cleft path end to end — artifact load, pairing checks,
+# packing, warm start, classifier re-init, the fold loop, early stopping, the
+# metrics.
+#
+# DOES NOT COVER: **GATE1_REFERENCE itself.** That reference was measured on
+# the whole-image vit_b16 head arm at g1, seed 1337, extracting its own
+# features, and only that arm can reproduce it. `run.task_train_cv` refuses
+# the comparison for any other arm and records WHY rather than leaving a
+# missing key — comparing this arm's numbers against it would be the category
+# error the project keeps finding. Reproducing the reference is the OTHER half
+# of this item: run `configs/p3_train_cv.yaml`, which carries seed 1337 in its
+# list and therefore emits `gate1_reproduction` without any edit.
+#
+# DOES NOT COVER: **the patch path.** PLAN's Phase 4 section still owes a
+# determinism re-run for it ("pooling is exactly where a nondeterministic
+# reduction hides"), and `phase3.determinism_fingerprint`'s docstring asks for
+# it by name. It was never closed. Two same-seed runs of `p4_patch_grid.yaml`
+# compared on `predictions_sha256` would close it, cheaply, over frozen
+# embeddings.
+#
+#   **PLAN's phrasing for it cannot be executed as written.** It says the
+#   patch arm should be "compared against GATE1_REFERENCE", but
+#   `run.task_train_cv`'s reference_arm predicate is False for any
+#   `patch_scheme != "whole"` — so a patch arm records
+#   `gate1_reproduction.checked: false` and never compares. The code is right
+#   and the instruction is wrong: the reference was measured on the
+#   whole-image arm, so a patch arm's numbers are SUPPOSED to differ and
+#   comparing them would say nothing. This is the same category error the
+#   predicate exists to prevent, sitting in the document that asks for it.
+#   Flagged rather than silently reinterpreted; whether Phase 6 closes it or
+#   Phase 7 inherits it is a scoping decision, and letting it disappear by
+#   being ambiguously owned is the one outcome to avoid.
+#
+# DOES NOT COVER: **AG-Net.** Its `roi_align` CUDA backward uses atomicAdd and
+# is nondeterministic run-to-run at ~2.3e-05; the flag cannot fix it in the
+# pinned image (no C++ compiler → no inductor → no deterministic
+# substitution). AG-Net arms compare at that tolerance, not at equality, and
+# that is recorded (`models.agnet.TRAINING_DETERMINISM`) rather than being
+# ambient knowledge. **Do not run this config against an AG-Net arm and read
+# equality as the criterion.**
+#
+# ----------------------------------------------------------------------------
+# WHAT A FALSE PASS LOOKS LIKE — CHECK THESE BEFORE BELIEVING A MATCH
+# ----------------------------------------------------------------------------
+#   * **Both runs aborted early and agree on nothing.** A digest over an empty
+#     or truncated prediction set can match trivially. Check `fingerprint.n`
+#     is 237 in both, and that `selected_epochs` has five entries.
+#   * **The second run resumed the first rather than repeating it.** Guard 3
+#     treats an existing run directory as a resume when the ID came from a job
+#     ID. Two DISTINCT job IDs, two distinct run directories — confirm the
+#     directory names differ.
+#   * **Reading agreement between two seeds instead of two runs.** The seed
+#     band's per-seed fingerprints are not this test; two different seeds are
+#     SUPPOSED to differ.
+#   * **Importing pretraining's `deterministic: false` into this reading.**
+#     That knob is pretraining's alone. The graph CLEFT path has no such
+#     field: `graph_cleft.run` calls the frozen `determinism.configure`
+#     unconditionally, which sets `use_deterministic_algorithms(True)`. So
+#     these runs are flag-ON — unlike the thirty pretraining runs, which were
+#     deliberately flag-off because ViT/Swin/SR-GNN are bitwise anyway in the
+#     pinned image. [MEASURED] The flag is already exercised on this exact
+#     path: the ten-seed band and the frozen probe both ran through it and
+#     completed, so no op in the SR-GNN cleft forward/backward lacks a
+#     deterministic kernel. If one ever raises, that is the gate working —
+#     report the op, do not turn the flag off.
+#
+# ----------------------------------------------------------------------------
+# THE OTHER HALF, AND WHY NO CONFIG IS EDITED
+# ----------------------------------------------------------------------------
+# `configs/p3_train_cv.yaml` reproduces GATE1_REFERENCE **unedited**. Its
+# comment suggests commenting out the ten-seed list for a determinism re-run,
+# and that is not needed: `run.task_train_cv`'s reference_arm predicate only
+# requires seed 1337 to be IN the list, and it is. Editing a keeper config
+# would change its recorded bytes and move its outputs from `metrics.json` to
+# `seed_1337__metrics.json` — a provenance change made to save a minute on an
+# arm that costs about one.
+#
+# The verdict is written to `gate1_reproduction.json`. Before 2026-08-01 it
+# was computed after `metrics.json` had already been written and therefore
+# survived only in `log.txt`; a gate closed by reading a number that was not
+# being kept is the same defect class this file's false-pass list is about.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p6_determinism_graph.yaml"
+
+schema_version: 1
+phase: p6
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+  - name: embeddings_srgnn_native
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_v1/srgnn__scut_masked__g2__native
+    rollup_sha256: 53f08076322d5d012790e58fa52e62033863e97f8e969d84afa059007d1cb968
+
+  - name: ckpt_srgnn_native_masked_g2
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_srgnn_native_masked_g2__5e927402__p6-pt-srgnn-native-g2-v2/pretrained.npz
+    rollup_sha256: c02441760520898e6737ecb18bb1f5aa9e9b9717e23dd5e81bcf614c02e24002
+
+task:
+  kind: train_graph_cv
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+  embeddings_artifact: embeddings_srgnn_native
+  checkpoint: ckpt_srgnn_native_masked_g2
+
+  backbone: srgnn
+  init: scut_masked
+  geometry: g2
+  region_scheme: native
+  label: mean
+
+  # THE REGIME, not a probe: the graph-training path is what the harness
+  # gained since gate 1 was measured, so it is what needs re-verifying.
+  trainable: graph_layers
+
+  # ONE seed, TWO jobs. This is the whole design of the test.
+  seeds: [1337]
+
+  max_epochs: 40
+  patience: 5
+  inner_val_frac: 0.2
+  monitor: inner_val_mse
+
+  learning_rate: 0.0001
+  weight_decay: 0.01
+  batch_size: 16

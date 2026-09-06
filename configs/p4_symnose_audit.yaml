@@ -1,0 +1,153 @@
+# ############################################################################
+# SUPERSEDED 2026-07-28 — this audit no longer decides anything.
+# ############################################################################
+#
+# It was built to attribute the SymNose null: does the segmentation hold at 237,
+# or only at the 9 the gate saw? That question mattered while the null was
+# thought to be evidence about upper-lip asymmetry.
+#
+# IT IS NOT. What was built was not SymNose -- no intercanthal levelling, no
+# registration, no nose, one axis instead of four -- so the index carries head
+# tilt, crop centring and lateral displacement, and a zero from it says nothing
+# about the construct WHATEVER the segmentation pass rate turns out to be. Both
+# branches of the attribution now lead to the same place.
+#
+# And SymNose is out regardless, on a scope boundary: every face measure depends
+# on user-placed roundels at named anatomical points, so automating it requires
+# landmark detection, which is outside this project's remit by supervisory
+# decision.
+#
+# ############################################################################
+# IT STILL RUNS, FOR THE FAIRNESS NUMBER. That is now its purpose.
+# ############################################################################
+#
+# "Unsupervised colour segmentation is implicitly calibrated on lighter skin"
+# currently rests on ONE PATIENT IN NINE. It is a real observation with a
+# mechanism behind it -- every method here is intensity- or redness-based, and on
+# darker skin the lip-versus-skin contrast compresses in both hue and value --
+# and it is an indefensible sample for the strongest ethical finding in the
+# project.
+#
+# The per-patient records already span all 237. `fairness_by_brightness` splits
+# the pass rate by median_value_in_region QUARTILE, so a brightness-linked
+# failure pattern becomes visible at cohort scale. READ IT FIRST:
+#
+#   quartiles.*.pass_rate       a monotone gradient with q1_darkest failing most
+#                               is what the mechanism predicts
+#   darkest_minus_lightest      the size of the gap, as one number
+#   quartiles.*.failures_by_criterion
+#                               HOW it fails, not only that it does. Patient 5's
+#                               signature was OVER-SELECTION, so an excess of
+#                               area_max in the darkest quartile is the specific
+#                               pattern to look for
+#
+# PROXY, NOT SKIN TONE. median_value_in_region also carries lighting, exposure
+# and how much of the frame the face fills. A gradient is evidence of a
+# BRIGHTNESS-LINKED FAILURE PATTERN, which is what the mechanism predicts;
+# calling it a skin-tone gradient would need ethnicity data this cohort does not
+# record. Write the first, not the second.
+#
+# A FLAT RESULT IS ALSO A FINDING. It would mean the n=1 observation did not
+# generalise, and the fairness claim would have to be narrowed to that patient
+# rather than quietly kept at cohort scale.
+#
+# The pass rate, the criterion breakdown and the feature distributions still come
+# out of the same run and remain worth reading -- but they now describe a PARKED
+# module for the write-up chapter, not a live arm.
+#
+# ----------------------------------------------------------------------------
+# DIAGNOSTIC ONLY. NOTHING IS TUNED HERE. Not the relaxation, not the split, not
+# the feature set. This reports what the shipped configuration does across the
+# whole cohort, so that the SymNose result can be ATTRIBUTED before anything is
+# adjusted -- adjusting first would destroy the attribution.
+#
+# ----------------------------------------------------------------------------
+# WHY THIS RUNS BEFORE THE RESULT IS INTERPRETED
+# ----------------------------------------------------------------------------
+# SymNose scored PCC -0.066 (SD 0.051) over five seeds, Spearman -0.003. Zero,
+# against the mirror-difference index at +0.158 on the same folds and label.
+#
+# The gate validated the segmentation on NINE patients -- 3.8% of the cohort. Two
+# completely different findings produce a correlation of zero:
+#
+#   A. the segmentation HOLDS at 237, and upper-lip symmetry genuinely does not
+#      predict an Asher-McDade composite;
+#   B. the segmentation COLLAPSES beyond the nine it was checked on, the index is
+#      noise for those patients, and the zero says nothing about the construct.
+#
+# The pass rate distinguishes them. A low rate makes the result uninterpretable
+# as a statement about anatomy; a high rate makes it a real finding.
+#
+# ----------------------------------------------------------------------------
+# WHAT TO READ, IN ORDER
+# ----------------------------------------------------------------------------
+#   pass_rate                    A over B. Compare against gate_sample_fraction:
+#                                the gate saw 3.8% of the cohort.
+#   failures_by_criterion        which criterion fails, and how often. NOTE that
+#                                area_min is KNOWN MIS-CALIBRATED for an
+#                                upper-lip target (mean area 0.0230 against a
+#                                floor of 0.02) and is deliberately not
+#                                corrected -- so a large area_min count is
+#                                EXPECTED and is not evidence the segmentation
+#                                failed. Read the other criteria for that.
+#   failures_by_sole_criterion   separates a cause from a symptom. A criterion
+#                                that only ever co-occurs with others is not the
+#                                reason; one that fails alone is.
+#   near_constant_features       THE OTHER DIAGNOSIS. If `index` barely moves
+#                                across patients, the segmentation is producing
+#                                similar masks regardless of input and the arm
+#                                measured nothing because nothing varied. That is
+#                                distinct from B and needs a different fix.
+#   feature_distributions        the full spread per feature, so "near-constant"
+#                                is a number rather than an impression.
+#   n_empty_masks                the floor case: no mask at all.
+#
+# THEN pull the failing patients from symnose_audit_per_patient.json (CLUSTER-
+# ONLY) onto a contact sheet. "62% fail" is not actionable; "these 89 fail, 74 of
+# them on area_min alone" is.
+#
+# ----------------------------------------------------------------------------
+# THE PREDICTION, RECORDED BESIDE THE RESULT
+# ----------------------------------------------------------------------------
+# metrics.json carries `construct_note` and `measured_result` together. A modest
+# POSITIVE was predicted in advance, on the grounds that SymNose measures
+# upper-lip asymmetry while the label is an Asher-McDade composite over nasal
+# form, nasal symmetry, nasolabial profile and vermillion border.
+#
+# ZERO WAS MEASURED. That is not the predicted modest positive attenuated -- it
+# is no relationship at all, and the Spearman rules out a monotone one being
+# missed by a linear statistic. The prediction and the measurement are recorded
+# side by side, unreconciled, until the audit says which explanation holds.
+#
+# ----------------------------------------------------------------------------
+# Hashes: run scripts/declare_inputs.py and paste. Do not copy from a chat log.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p4_symnose_audit.yaml"
+
+schema_version: 1
+phase: p4
+tier: dev
+
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+task:
+  kind: symnose_audit
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+
+  # Exactly what the SymNose arm ran with. Any difference here would audit a
+  # configuration that did not produce the result being explained.
+  geometry: g2
+  normalisation: none
+  split_rule: centroid

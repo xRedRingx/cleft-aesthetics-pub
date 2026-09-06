@@ -1,0 +1,209 @@
+# ############################################################################
+# PARKED 2026-07-30 — BUILT AND VERIFIED, NOT RUN. DO NOT LAUNCH CASUALLY.
+# ############################################################################
+#
+# Stage F (TSTR vs CV-on-237) is STRUCK from the arm list. This config still
+# works and is kept so the arm can be revived, but running it produces an
+# artifact nothing currently consumes.
+#
+# WHY IT IS PARKED: the four limitations below meant NO INTERPRETABLE OUTCOME
+# was available in either direction — a null would have been consistent with all
+# four at once, and a positive would have contradicted a prediction recorded in
+# advance. That was knowable before the run, which is why the prediction was
+# written down first. See scut/synthesis.py::PARKED and PLAN Part 6.
+#
+# BEFORE RUNNING IT ANYWAY, KNOW THIS: the full build is pathologically slow on
+# the cluster and the cause is NOT established. p5-synth-1 managed fewer than 250
+# faces in 233 minutes at ~1,400 CPU-seconds per face against 0.30 s/face
+# locally. Profiling settled that the build is flat in n and that the hot path is
+# elementwise numpy, not linear algebra; it did not settle why 99.98% of the
+# cluster's CPU is overhead. Try OPENBLAS_NUM_THREADS=1 first.
+# See scut/synthesis.py::CLUSTER_PERFORMANCE_UNRESOLVED.
+#
+# ----------------------------------------------------------------------------
+
+# PHASE 5 §5 — UNILATERAL CLEFT-LIKE ASYMMETRY BY THIN-PLATE SPLINE.
+#
+# PLAN §4.11 Q-b, DECIDED 2026-07-28: landmark-driven TPS, DEFORMATION ONLY.
+# One rule, one magnitude parameter, unilateral, side recorded and balanced.
+#
+# ############################################################################
+# TWO LIMITATIONS, RECORDED BEFORE THE ARM RUNS
+# ############################################################################
+# Required by the decision, in the SymNose construct-note pattern: these are
+# PROPERTIES OF THE INSTRUMENT, not disclaimers about a component of it. They
+# live in synthesis.LIMITATIONS and are written FIRST in metrics.json, so a
+# reader meets them before the numbers.
+#
+# 1. NO SCAR. A repaired unilateral cleft lip carries a surgical scar, and the
+#    Phase 4 segmentation runs found Otsu picking it up on several patients --
+#    on a post-repair cleft, much of what the aesthetic grade is about. This
+#    changes shape and leaves texture intact, so a model pretrained on it sees
+#    no scar at all. The gap is STATED, not closed: adding a scar would mean
+#    inventing appearance this project has no data to specify.
+#
+# 2. THE MAGNITUDE-TO-GRADE MAPPING IS AN ASSUMPTION. `magnitudes` are
+#    displacements in units of crop width. NOTHING here establishes that a
+#    given displacement corresponds to any particular Asher-McDade grade -- no
+#    measurement in this project relates the two, and the cleft cohort records
+#    no landmark displacements to calibrate against. They are an ORDERED series,
+#    not a graded one. Using magnitude as a label is a further assumption to
+#    declare where it is used.
+#
+# A third, smaller one is recorded with them: the per-target direction vectors
+# and weights follow the described morphology of unilateral cleft but are
+# [REASONED], not measured. They are CONSTANTS rather than swept parameters, so
+# this arm tests one stated rule rather than searching for a flattering one.
+#
+# ----------------------------------------------------------------------------
+# WHAT MOVES, AND WHAT MUST NOT
+# ----------------------------------------------------------------------------
+# Four landmarks on one side: alar base, philtral column, cupid's bow peak,
+# commissure. The 86-point set has NO philtral-column landmark -- the column is
+# the ridge between the cupid's bow peak and the nostril sill, and the set
+# samples only those endpoints -- so the column enters as the nostril sill, and
+# that substitution is stated rather than made silently.
+#
+# Everything else is ANCHORED and the residual motion is measured, not assumed:
+#   * the crop boundary, or the TPS warps the whole plane and the result is a
+#     reframed face rather than an asymmetric one;
+#   * the CONTRALATERAL landmarks, or the deformation is not unilateral and a
+#     mirror-difference index computed on it measures a bilateral change;
+#   * the MIDLINE landmarks (subnasale, cupid's bow dip), or the deformation
+#     displaces the midline itself, which is a different deformation.
+# `deformation_is_local.max_unintended_motion_frac_width` in metrics.json is
+# that measurement. It should be ~1e-8.
+#
+# ----------------------------------------------------------------------------
+# SIDES ARE BALANCED, NOT MATCHED
+# ----------------------------------------------------------------------------
+# Cleft laterality is NOT RECORDED ANYWHERE in the cohort (PLAN §4.1), so a set
+# deformed on one side only would hand the model a consistent direction the
+# clinical data cannot confirm exists. Sides are balanced exactly -- n//2 each,
+# then permuted from the seed -- rather than by a per-face coin flip, which is
+# balanced in expectation and not in fact. The side is recorded per face.
+#
+# ----------------------------------------------------------------------------
+# DOES THE ASYMMETRY SURVIVE G2? MEASURED TWO WAYS
+# ----------------------------------------------------------------------------
+# PLAN §4.4 marks unwarp's asymmetry preservation [REASONED] and flags "should"
+# as the word that has been wrong every previous time here.
+#
+# `asymmetry_survives_g2` is the EXACT measurement: landmark coordinates mapped
+# through trapezium.unwarp_x, no resampling, so no floor. RATIOS ABOVE 1 ARE
+# CORRECT AND EXPECTED -- G2 magnifies horizontal distance by 1/(2*half_width),
+# 1.66 at the brow falling to 1.0 at the lip. A ratio near ZERO would mean the
+# asymmetry was destroyed and G2 unusable for this arm. Measured 1.14-1.27 on
+# fixtures.
+#
+# The pixel companion (synthesis.synthesised_asymmetry_survives) is NOT the
+# primary measurement and metrics.json does not lead with it: the frozen path's
+# nearest-neighbour resampling leaves a mirror difference of ~0.0042 on an
+# exactly symmetric input, against ~0.0011 from a magnitude-0.06 deformation --
+# and on a real face, whose texture is mirror-asymmetric anyway, the pixel index
+# sits near 0.1 and the deformation moves it by ~1e-5. It cannot see the warp.
+#
+# ----------------------------------------------------------------------------
+# MAGNITUDES, AND THE MEASURED CEILING ON THEM
+# ----------------------------------------------------------------------------
+# 0.0 must be present and is validated at runtime: the undeformed set is this
+# arm's own reference, and a deformed-only set has nothing to be compared with.
+# The others are an ordered series -- see limitation 2.
+#
+# THE UPPER END IS A MEASUREMENT, NOT A PREFERENCE [MEASURED 2026-07-30]. A TPS
+# pinned at nearby points cannot move a target far without creasing.
+# `displacement / nearest anchor` scales at about 13.2x the magnitude, and the
+# CUPID'S BOW PEAK binds first -- its neighbours are the anchored midline dip
+# ~0.09 crop widths away and the nostril sill:
+#
+#     magnitude 0.03 -> ratio 0.40      0.06 -> 0.79
+#     magnitude 0.04 -> ratio 0.53      0.09 -> 1.19
+#
+# At 0.09 the peak travels FURTHER THAN ITS NEAREST ANCHOR IS AWAY and the
+# vermillion folds into a chevron. It is clearly visible on the sheet, and it is
+# the FIELD rather than the resampling: the shape is identical under bilinear
+# interpolation, checked. 0.5 is the working ceiling
+# (synthesis.MAX_DISPLACEMENT_TO_ANCHOR_RATIO), so the usable range runs to
+# about 0.038 and the series below stays inside it.
+#
+# AN OPEN DECISION SITS BEHIND THIS, and it is recorded rather than taken. The
+# bound is a property of the ANCHOR SET, not of the method. The midline
+# landmarks are anchored so the mirror-difference measurement keeps a stable
+# midline -- and anchoring the bow dip 0.09 from the peak is exactly what limits
+# the peak's travel, while in a real unilateral cleft the philtrum IS deviated
+# toward the cleft. Unanchoring the midline would widen the usable range and
+# CHANGE WHAT THE INSTRUMENT MEASURES. That is a design call for review, not one
+# to make by editing a constant.
+#
+# `max_displacement_to_anchor_ratio` is in every per-face record, so a series
+# pushed past the ceiling is visible in metrics.json rather than only on a sheet.
+#
+# ----------------------------------------------------------------------------
+# THE ARTIFACT
+# ----------------------------------------------------------------------------
+# `write_artifact: false` by default: the sheet is the cheap review pass and
+# writing an immutable artifact is a deliberate act. Set it true with
+# `n_faces: 0` once the sheet has been reviewed. The task refuses to overwrite
+# an existing version (PLAN §2.6) -- create v2, never modify v1.
+#
+# WHAT TO LOOK FOR ON THE SHEET: each row is one face at every magnitude, left
+# to right, undeformed first. Does the deformation read as a unilateral cleft
+# nose and lip, or as a smear? Does the frame hold still across the row? Does
+# the untouched side look untouched? A magnitude that distorts recognisably
+# beyond cleft morphology is the upper end of the usable series, and that
+# judgement is the sheet's, not a metric's.
+#
+#   .\scripts\test.ps1
+#   python -m cleft.run --config configs/p5_asymmetry_synthesis.yaml
+
+schema_version: 1
+phase: p5
+tier: dev
+seed: 1337
+
+# SCUT exists on both machines, so the path comes from the environment and the
+# declared rollup verifies whatever it resolved to. See p5_masked_scut.yaml for
+# the full reasoning and the shared-hash caveat.
+#
+#     cluster : export CLEFT_SCUT_ROOT=/home/user/codex/scut/SCUT-FBP5500_v2
+#     laptop  : $env:CLEFT_SCUT_ROOT = "C:\data\scut-fbp5500\SCUT-FBP5500_v2"
+
+inputs:
+  - name: scut_root
+    path: ${CLEFT_SCUT_ROOT}
+    rollup_sha256: 1041ceed0ef458e97c8be845eda30cf7957067fa730a4975a0f83bd8ed4947ec
+
+task:
+  kind: asymmetry_synthesis
+
+  scut_root: scut_root
+  geometries: ["g1", "g2"]
+
+  # SHEET-ONLY REVIEW MODE, and deliberately: the arm is PARKED (Stage F is
+  # struck) and nothing consumes the artifact. This config previously shipped
+  # n_faces: 0 with write_artifact: false -- a full 5,499-face build whose only
+  # outputs would have been the sheet and metrics, the exact silent combination
+  # masked_scut ran three times, and on THIS task it would also have been the
+  # known pathologically slow cluster build. The task now refuses it outright.
+  # If Stage F is ever revived: n_faces: 0 AND write_artifact: true together.
+  n_faces: 12
+  n_sheet: 6
+
+  # A Run:AI pause reattaches the run directory but NOT the work (PLAN §2.7), so
+  # without checkpointing a paused build silently restarts at face 0 — the exact
+  # failure docs/VERIFY_resume.md left open. Every 250 faces of 5,499 loses at
+  # most ~4.5% of the build to a pause while costing four small writes.
+  checkpoint_every: 250
+
+  # 0.0 is the undeformed reference and is required. An ORDERED series, not a
+  # graded one -- see limitation 2. The top of the series is held under the
+  # measured anchor-spacing ceiling (~0.038); 0.09 folds the vermillion.
+  magnitudes: [0.0, 0.015, 0.025, 0.035]
+
+  # Bootstrap over the 237 raw cleft ratios. See p5_masked_scut.yaml for why the
+  # percentile-interpolating sampler was replaced: it realised 2.75% landscape
+  # against the cohort's 0.42%.
+  ar_sampling: observed
+
+  write_artifact: false
+  out_version: synth_v1

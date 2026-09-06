@@ -1,0 +1,72 @@
+# THE DETERMINISM PROBE — ViT-224 FROM THE DECLARED INIT, FLAG ON. RUN TWICE.
+#
+# [MEASURED 2026-08-10] ViT pretraining is nondeterministic on the pinned
+# stack from pinned weights on identical hardware — three runs, three
+# checkpoints, spread 0.030, selected epochs 23/11/14
+# (roadb.VIT_PRETRAINING_IS_NONDETERMINISTIC). The measured mechanism
+# candidate: ViT's attention routes through fused scaled_dot_product_attention
+# (fused_attn=True) where Swin's does not, and the fused backward is
+# atomics-class; locally, forcing the MATH backend collapses the
+# across-instance gradient divergence to bitwise zero.
+#
+# This config is the vit-224 cell with ONE field changed: deterministic: true
+# — through the frozen determinism.configure, exactly the route the config
+# comment reserved for it. TWO READABLE SURFACES, committed before the run:
+#
+#   it RAISES     -> the op names itself in the deterministic-mode error;
+#   it RUNS       -> run it TWICE: the pair must be bitwise-equal
+#                    (pretrained_checkpoint.sha256 identical), confirming
+#                    the fused op by elimination.
+#
+# Same GPU MODEL both runs — the cross-device lesson. Deliberately NOT named
+# roadb_p6_pretrain_* so the lattice's field-for-field test does not claim
+# it: this probe intentionally differs from Road A in the deterministic
+# field.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/roadb_p6_det_probe_vit_224.yaml"
+
+schema_version: 1
+phase: roadb_p6
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: scut_root
+    path: ${CLEFT_SCUT_ROOT}
+    rollup_sha256: 1041ceed0ef458e97c8be845eda30cf7957067fa730a4975a0f83bd8ed4947ec
+
+  - name: masked_scut
+    path: /home/user/codex/cleft-aesthetics/data/scut/masked_v1
+    rollup_sha256: 7c08f8657afeeb49fd34377fba9cd20241b2359a208d418a1dfa6399dc43708b
+
+  - name: pretrained_init
+    path: /home/user/codex/cleft-aesthetics/data/inits/init_vit_b16_v1
+    rollup_sha256: c974c782e08b8791a3ecec38c5c3b96a919681a3576fc0808abb395fc94c1ea7
+
+task:
+  kind: pretrain
+
+  scut_root: scut_root
+
+  backbone: vit_b16
+  source: masked_g1
+  region_scheme: none
+
+  expect_train: 3300
+  expect_test: 2199
+
+  epochs: 30
+  inner_val_frac: 0.1
+  monitor: inner_val_pcc
+
+  # THE ONE CHANGED FIELD. Routes through the frozen determinism.configure
+  # (CUBLAS workspace before the first CUDA context). Everything else is the
+  # vit-224 cell verbatim.
+  deterministic: true
+
+  learning_rate: 0.0001
+  weight_decay: 0.01
+  batch_size: 32
+
+  checkpoint_every: 1

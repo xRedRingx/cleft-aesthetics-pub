@@ -1,0 +1,126 @@
+# PHASE 7 — THE ONE-FACTOR VARIANT. GEOMETRY, ISOLATED.
+#
+# ----------------------------------------------------------------------------
+# WHY
+# ----------------------------------------------------------------------------
+# Fifteen ladder arms came back depressed against what the same nominal
+# configurations measured earlier. The control reproduces: p3_train_cv.yaml
+# run unchanged gave mean 0.2529 over ten seeds with seed 1337 at
+# 0.2719366015264466, matching GATE1_REFERENCE exactly. So the harness is
+# intact and the depression comes from what DIFFERS.
+#
+# Two things differ at once, and neither was isolated:
+#
+#   geometry       the bar is G1; every ladder arm is G2
+#   feature source Phase 3 extracts live; the ladder reads stored artifacts
+#
+# **[MEASURED 2026-08-01] The feature-source half is already excluded at the
+# code level.** The two extraction paths — torch_backbone.extract_embeddings
+# at num_outputs=0 calling model(batch), and extract.extract_features at
+# num_outputs=1 calling forward_features + forward_head(pre_logits=True) —
+# produce BITWISE IDENTICAL output for both ViT-B/16 and Swin-B given the same
+# weights and input. `head` is Identity at num_classes=0 and pre_logits=True
+# stops before it, so the two are the same computation.
+#
+# What that does not exclude is the stored ARRAY differing from what the path
+# produces today: wrong images, permuted rows, a precision round trip, a stale
+# run. scripts/compare_live_and_stored_features.py tests that directly,
+# without fitting anything.
+#
+# **This config tests the other half.** p3_train_cv.yaml with ONE field
+# changed.
+#
+# ----------------------------------------------------------------------------
+# WHAT IT IS
+# ----------------------------------------------------------------------------
+# Identical to configs/p3_train_cv.yaml except `geometry: g2` and the seed
+# list truncated to five. Still LIVE extraction — no embeddings_artifact, so
+# prepare_features runs ViT-B/16 over the staged images exactly as Phase 3
+# does. Still ImageNet init, still the whole-image frozen probe, still the
+# mean label.
+#
+# **The five seeds are p3_train_cv's own first five** (1337, 2024, 7, 99,
+# 12345), so this is comparable seed-for-seed against that run's first five as
+# well as against its ten-seed mean — not merely against a summary.
+#
+# ----------------------------------------------------------------------------
+# HOW TO READ IT
+# ----------------------------------------------------------------------------
+#   ~0.25   geometry is NOT the cause. The G2-live probe matches the G1-live
+#           bar, so the ladder's depression is the feature source after all —
+#           and since the code paths are identical, that means the stored
+#           ARRAYS are not what the code produces. The comparison script says
+#           which way.
+#
+#   ~0.13   geometry IS the cause, and the ladder numbers are real G2 numbers.
+#           The bar was simply the wrong bar: 0.2529 is a G1 measurement and no
+#           ladder arm was ever comparable to it. Q1/Q2 and every within-ladder
+#           delta become interpretable immediately, because they are all G2-to-
+#           G2 and the confound is common to both sides.
+#
+#   between Both factors contribute and neither is settled. Run the comparison
+#           script before reading anything else.
+#
+# **[REASONED] a mechanism that would explain ~0.13, recorded so it is not
+# invented afterwards.** PLAN §4.4: the frozen composition stretches the white
+# pad INTO G2 at every aspect ratio ≠ 1 — G2 white is ≈ the pad fraction,
+# 0.259 at the median AR and 0.446 at AR 0.553. Aspect ratio is a property of
+# the crop, not the pathology, so at G2 each patient carries a different
+# amount of white for a reason unrelated to their grade. G1's trapezium
+# corners are a FIXED shape by comparison. That is a per-patient nuisance
+# variable G2 adds and G1 does not, and it would not have shown up in SCUT
+# pretraining, where ViT preferred G2 by 0.041 on 3,300 faces.
+#
+# Unverified, and it must not be quoted as the explanation on the strength of
+# this run alone — it is written down first so that a matching result is a
+# prediction confirmed rather than a story fitted.
+#
+# ----------------------------------------------------------------------------
+# DO NOT INTERPRET THE LADDER UNTIL THIS RESOLVES
+# ----------------------------------------------------------------------------
+# No Q1, no Q2, no geometry claim, no scheme claim, no label claim. Fifteen
+# arms are measured against a bar none of them shares.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p7_repro_g2_live.yaml"
+
+schema_version: 1
+phase: p7
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+task:
+  kind: train_cv
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+
+  # THE ONE FIELD THAT DIFFERS FROM p3_train_cv.yaml.
+  geometry: g2
+
+  # Everything below is p3_train_cv.yaml, unchanged.
+  label: mean
+  backbone: vit_b16
+  trainable: head
+
+  max_epochs: 40
+  patience: 5
+  inner_val_frac: 0.2
+  monitor: inner_val_mse
+
+  learning_rate: 0.001
+  weight_decay: 0.01
+  batch_size: 32
+
+  # p3_train_cv.yaml's first five seeds, so the comparison is seed-for-seed
+  # and not merely mean-to-mean.
+  seeds: [1337, 2024, 7, 99, 12345]

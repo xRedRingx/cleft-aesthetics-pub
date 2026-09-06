@@ -1,0 +1,447 @@
+# PHASE 4 §2 — THE SEGMENTATION FEASIBILITY GATE.
+#
+# Run this BEFORE building anything for SymNose. It is the whole reason §3.2 is
+# marked conditional.
+#
+# ----------------------------------------------------------------------------
+# WHY THIS EXISTS [LITERATURE]
+# ----------------------------------------------------------------------------
+# The protocol states that lip extraction may be impossible on this data:
+#
+#   "The Computer subtraction imaging technology to extract just the lip from
+#    the surrounding skin is not possible on compressed low resolution JPEG type
+#    files and needs either the original DNG raw camera negative file or its
+#    most uncompressed server stored equivalent in TIFF."
+#
+# The raw originals DO NOT EXIST for this cohort (PLAN §4.1). So the question is
+# not "how should lips be segmented" but "can they be, here, at all".
+#
+# Cheap-diagnostic-first: the same pattern that found the AppleDouble sidecars
+# and checked the band boundaries before anything trained on them.
+#
+# ----------------------------------------------------------------------------
+# RUN 1 (2026-07-28): UNDECIDED, NOT OUT. What it found, and what changed.
+# ----------------------------------------------------------------------------
+# colour_separation worked on 5 of 9, rows 5 and 9 near-perfect. The remaining
+# successes picked lips AND nose and over-selected. Rows 4, 7 and 8 collapsed to
+# the whole face. otsu_threshold and chan_vese returned whole-face masks on all
+# nine.
+#
+# TWO DIAGNOSED CAUSES, TWO TARGETED FIXES -- not a search:
+#
+#   1. THE SEARCH WAS OVER THE WHOLE FRAME. The staged crop is padded with white,
+#      so the strongest available split is FACE vs BACKGROUND, and that is what
+#      Otsu and Chan-Vese found. Both now run inside a face mask, which also
+#      makes Otsu a genuine per-image lip-vs-skin cut instead of a fixed constant
+#      that 3 of 9 skin tones sat on top of.
+#
+#      This also invalidates run 1's separability of 0.888. That number measured
+#      face-vs-background, so it says NOTHING about lip-vs-skin in either
+#      direction and cannot be cited for or against the protocol. It is now
+#      computed inside the face; the whole-frame value is still reported beside
+#      it so the correction is visible.
+#
+#   2. LIPS AND NOSE CAME OUT TOGETHER. That is the discriminant working
+#      correctly -- both are red and saturated in a nasolabial crop -- so no
+#      threshold separates them. Position does. `spatial_prior: bottom` restricts
+#      the search to the Phase 2 bottom band, already confirmed on the Phase 2
+#      contact sheet to contain the commissures. A constraint, not a new
+#      constant.
+#
+# `spatial_prior: none` plus `face_mask: false` reproduces run 1 exactly.
+#
+# ----------------------------------------------------------------------------
+# RUN 2 (2026-07-28): SYMNOSE IS IN. What was decided, and on what.
+# ----------------------------------------------------------------------------
+# Both fixes worked. Otsu and Chan-Vese trace the lips near-perfectly on nearly
+# every patient, and Otsu picks up the surgical scar in some -- which on a
+# post-repair cleft is much of what the aesthetic grade is about. Colour
+# separation is unchanged from run 1 apart from being confined to the band, and
+# is OUT; it stays in the table as the record of what a fixed cut does.
+#
+# THE INSTRUMENT IS CHAN-VESE, NOT OTSU. They find the same region -- which is
+# why Otsu is kept as a comparator, and why their agreement is the signal used
+# to tell a failing image from a failing method. But SymNose MIRRORS A TRACED
+# BOUNDARY AND SUPERIMPOSES IT, so boundary noise enters the asymmetry
+# measurement directly as spurious asymmetry. Otsu thresholds per pixel and its
+# edge is pixelated; Chan-Vese carries a curvature term and its edge is smooth.
+# A jagged edge would manufacture the very signal being measured.
+#
+# THE RELAXATION. Run-2 masks sit just inside the vermillion border and want a
+# little more on the upper lip -- the contour converges where between-class
+# separation is maximised, which is not the anatomical boundary. One fixed
+# relaxation is applied identically to every patient, expressed as a fraction of
+# THAT IMAGE'S OWN class gap rather than in pixels, so it lands in the same place
+# relative to each image's separation instead of being a different relaxation on
+# each. That is what makes it fixed rather than a per-patient tune.
+#
+# WATCH THE MAGNITUDE. SymNose measures the UPPER lip. Over-relaxing crosses the
+# oral fissure into the lower lip and silently changes what is measured -- the
+# arm would keep running and keep producing numbers. The unrelaxed contour is
+# rendered beside the relaxed one on every sheet, and `relaxation.mean_growth`,
+# `relaxation.max_growth` and `n_growth_high` report the area increase. JUDGE THE
+# MAGNITUDE ON THE SHEET, not from those numbers.
+#
+# FAILURES ARE ATTRIBUTED, because a limitation and a defect are recorded
+# differently. The discriminator is agreement between the instrument and the
+# comparator: if both fail but AGREE, two independent methods found the same
+# non-lip thing and the cause is the image -- poor repair with no clear
+# vermillion border, an open mouth, flattening light. That is a LIMITATION. If
+# they DISAGREE, at least one is breaking down, and that is a DEFECT to fix.
+# The failing patients are NAMED in segmentation_per_patient.json, which is
+# CLUSTER-ONLY; metrics.json carries counts only.
+#
+# ----------------------------------------------------------------------------
+# RUN 3 (2026-07-28): fits 8 of 9. Two findings, and one supersedes the sweep.
+# ----------------------------------------------------------------------------
+# FINDING 1 -- THE MASKS COVER BOTH LIPS, AND THE RELAXATION IS NOT THE CAUSE.
+# Run 2 already covered both lips on 3 of 9 at relaxation 0. The relaxation made
+# a pre-existing failure UNIVERSAL rather than creating it, so reducing it
+# returns to 3 of 9, not to 0.
+#
+# The mechanism: Chan-Vese segments regions of similar intensity, and the two
+# lips ARE similar in intensity. The oral fissure is a thin dark line between two
+# lookalike regions, so an intensity-based method has no reason to stop there --
+# whether it crosses depends only on how pronounced the fissure is in that image.
+#
+# SymNose measures the UPPER lip. A both-lips mask is a DIFFERENT INSTRUMENT: its
+# mirrored asymmetry includes lower-lip variation, which is not part of the
+# construct, and the resulting index would not be comparable with SymNose's.
+#
+# So the upper-lip constraint is the fix, NOT an addition to a smaller
+# relaxation. Any intensity-based segmenter needs an explicit anatomical rule to
+# stop at the fissure, because intensity does not encode one. The fissure is
+# detected as the darkest horizontal line inside the lip mask and only what lies
+# above it is kept -- method `upper_lip`, which is now the instrument.
+#
+# THE RELAXATION IS NOW RE-TUNED AGAINST THE UPPER LIP ALONE. With the crossing
+# prevented, 0.15 may well be right after all; `contour_relaxation` is a config
+# field so the sweep is a one-line change.
+#
+# NEW PRE-DECLARED CRITERION: fraction_above_fissure >= 0.80. Measured on the
+# UNCONSTRAINED contour, because the instrument satisfies it by construction --
+# the same caveat centroid_y carries under the bottom-band prior. It is EXPECTED
+# TO FAIL run-2 relaxed on 9 of 9 and run-2 unrelaxed on 3 of 9. Verify both as a
+# regression: a criterion that passes everything on arrival has not been shown to
+# test anything. Re-run with `contour_relaxation: 0.0` for the 3-of-9 check.
+#
+# ALSO CHECK n_fissure_found AGAINST n_patients. Where no dark line is
+# detectable, nothing is constrained and that mask may still span both lips while
+# satisfying the criterion trivially.
+#
+# ----------------------------------------------------------------------------
+# FINDING 2 -- A FAIRNESS LIMITATION, NOT AN IMAGE-QUALITY ONE
+# ----------------------------------------------------------------------------
+# Patient 5 is of Indian ethnicity; the other eight are white British. Every
+# method here is intensity- or redness-based, so ALL ARE IMPLICITLY CALIBRATED ON
+# LIGHTER SKIN: on darker skin the lip-versus-skin contrast compresses in both
+# hue and value. The signature is exact -- median saturation 0.824 against
+# 0.331-0.492, all four methods taking 44-99% of the band, and the mask escaping
+# onto the chin and cheeks well outside the vermillion lines.
+#
+# The `genuine_difficulty` attribution reached the right verdict for the WRONG
+# REASON. It reads as "hard image"; the cause is "the method assumes a skin tone
+# this patient does not have". Those are recorded differently, and the
+# attribution note now says so.
+#
+# SymNose was developed and validated on a British cleft cohort, so an automated
+# reimplementation inherits its POPULATION ASSUMPTIONS along with its algorithm.
+# That belongs in the write-up whatever this screen says.
+#
+# THREE CONSEQUENCES:
+#   1. The nine-patient sample is NOT REPRESENTATIVE on this axis -- one
+#      non-white patient, and it is the only failure. Any success rate quoted
+#      from it carries that caveat.
+#   2. `normalisation: rank` is the hypothesis to test, with patient 5 as the
+#      test case. Default is "none" so this is a SEPARATE run from the fissure
+#      constraint -- R6, one change at a time.
+#   3. DO NOT TUNE ANYTHING ON PATIENT 5. The fix must be a rule applying
+#      identically to everyone, or it fits one image and HIDES the fairness
+#      problem rather than solving it -- and leaves the next darker-skinned
+#      patient exactly where this one is.
+#
+# NEW PRE-DECLARED CRITERION: the instrument must succeed on the darkest-skinned
+# patient in the sample, by median brightness inside the search region. A proxy,
+# not skin tone, and with n=1 non-white it is a very weak instrument. Currently
+# failing.
+#
+# ----------------------------------------------------------------------------
+# RUN 4 (2026-07-28): the constraint works where it fires, and rarely fires.
+# ----------------------------------------------------------------------------
+# n_fissure_found was 2 of 9, and on the sheet only 3 of 9 are upper-lip only --
+# one correct, one above the vermillion line on the moustache (a SKIN-TONE
+# problem, not a fissure one: it goes with the normalisation experiment), and one
+# only because that patient's lower lip is not in the crop. The other six still
+# span both lips, passing fraction_above_fissure trivially because no fissure was
+# found.
+#
+# So the constraint is CORRECT WHERE IT FIRES AND INERT ELSEWHERE. The detection
+# threshold is too strict: 0.08 separated the synthetic fixtures cleanly (0.0000
+# against 0.1373) and real fissures are shallower than synthetic ones.
+#
+# WHAT metrics.json NOW REPORTS, AND HOW TO USE IT:
+#
+#   fissure.depths_sorted    the actual dip depth per patient, whether or not it
+#                            cleared the threshold. This is the distribution that
+#                            decides the question: if the six undetected cluster
+#                            near 0.03 the fix is to lower the threshold; if they
+#                            are at 0.005 the fissure is not in the image.
+#   fissure.sharpness_sorted the dip in standard deviations of the row profile.
+#                            DEPTH ALONE CANNOT tell a shallow dark LINE from the
+#                            darkest row of something uniform -- at 0.03 they look
+#                            identical. Sharpness can, and it is what makes
+#                            lowering the threshold safe.
+#   fissure.sweep            what 0.02 / 0.03 / 0.05 / 0.08 would each have
+#                            found, from the same run -- the candidate row does
+#                            not move with the threshold, so no re-run is needed.
+#                            n_found is NOT the outcome on its own. A threshold
+#                            low enough to fire on 9 of 9 while landing on
+#                            arbitrary dark rows is WORSE than one that fires on
+#                            2, because a false fissure halves a correct mask and
+#                            the halved mask then satisfies the criterion by
+#                            construction -- the same false positive the
+#                            smoothing defect produced. PREFER THE LARGEST
+#                            n_sharp WITH n_noise AT 0.
+#   fissure.floor            how many patients sit at the noise floor. A dip
+#                            within the profile's own noise is not a faint
+#                            fissure; there is nothing there and NO threshold
+#                            recovers it.
+#
+# THE FLOOR IS A LIMITATION, NOT A DEFECT. In a closed relaxed mouth the fissure
+# is one or two pixels of shadow in a compressed JPEG. If the depths show that,
+# it is a real constraint on intensity-based upper-lip segmentation on this data,
+# and it belongs in the write-up BESIDE THE FAIRNESS POINT -- both are things the
+# method inherits rather than things to fix.
+#
+# Every candidate threshold is regression-tested against a no-fissure mask on the
+# laptop, so a swept value cannot quietly reintroduce the false positive.
+#
+# ----------------------------------------------------------------------------
+# RUN 5: THE FISSURE ROUTE IS ABANDONED. THE SPLIT IS GEOMETRIC.
+# ----------------------------------------------------------------------------
+# THE SWEEP SETTLED IT. There is no viable threshold: 0.03 buys two more sharp
+# detections AND ONE NOISE DETECTION -- the false positive that halves a correct
+# mask while satisfying the criterion by construction. Seven of nine depths sit
+# below 0.05 and the only real gap is between 0.047 and 0.114.
+#
+# THE FLOOR IS A LIMITATION, RECORDED. In seven of nine patients the oral fissure
+# is NOT RECOVERABLE from these images: closed relaxed mouth, one or two pixels
+# of shadow, compressed JPEG. There is nothing in the pixels to find. That is a
+# constraint of intensity-based upper-lip segmentation on this data, it sits
+# BESIDE THE FAIRNESS POINT, and both are inherited from the method and the
+# imagery rather than being defects to fix.
+#
+# THE SPLIT IS NOW GEOMETRIC: the mask is divided at a position derived from its
+# own shape -- `split_rule: centroid` (its centroid row) or `fraction` (a fixed
+# 0.5 of its vertical extent, declared a priori and NOT fitted). No dark line
+# needed, applies uniformly, and it is what the detection was proxying for.
+#
+# THE TWO DETECTED FISSURES ARE THE VALIDATION SET, and they are the whole point
+# of run 4. `fissure.validation` reports, for those patients only, how far each
+# geometric rule lands from the detected fissure -- signed, in pixels, positive
+# meaning the split sits BELOW it so the upper-lip mask keeps some lower lip.
+#
+#   * land within a few pixels -> the geometry predicts the anatomy and the split
+#     is defensible on the seven patients where nothing was detectable;
+#   * they do not -> the geometry does NOT predict the anatomy and this route
+#     fails too. THAT IS A RESULT, NOT A SETBACK.
+#
+# TWO THINGS ABOUT THE VALIDATION:
+#   - The validation set is selected on SHARPNESS (>= 1.4), which is looser than
+#     any operating depth threshold. That is deliberate and is NOT the criterion
+#     loosened: "where do I trust the ground truth" and "what do I run on every
+#     patient" are different questions, and a shallow but sharp detection is
+#     trustworthy evidence even where firing on it automatically would be risky.
+#   - DO NOT TUNE `SPLIT_FRACTION` AGAINST THE ERRORS. That fits the line to the
+#     two-to-four patients with a detected fissure and tells you nothing about
+#     the seven the split exists to serve. If the split lands 8 px below the
+#     fissure on average, 8 px is the measurement.
+#
+# THE TRADE, STATED UP FRONT. The fissure rule was correct wherever it fired and
+# INERT ON 7 OF 9. The geometric split ALWAYS FIRES -- it has no not-found case --
+# so it halves a contour that was ALREADY upper-lip only, which is what happens
+# when a patient's lower lip is outside the crop (patient 17). And no shape
+# statistic distinguishes the two: split_removed_fraction is ~0.5 either way,
+# because the masks look the same. `fissure.split_rows` gives the per-patient
+# split position so THE SHEET can judge it directly -- the validation numbers say
+# how close it is on the validated cases, only the sheet says whether it lands on
+# the upper lip for the rest.
+#
+# ----------------------------------------------------------------------------
+# THE RUNS TO DO, IN ORDER
+# ----------------------------------------------------------------------------
+#   1. As shipped: `split_rule: centroid`. Read fissure.validation for both
+#      rules, then look at fissure.split_rows against the sheet.
+#   2. `split_rule: fraction` if centroid validates worse -- same run, one field.
+#   3. Then `normalisation: rank`, one change at a time (R6). Does patient 5 come
+#      good -- including the moustache excursion, which is the SKIN-TONE problem
+#      and unaffected by any of the above -- and does anyone else get worse? Both
+#      halves matter: a rule that fixes one patient by breaking two is not a fix.
+#
+# ----------------------------------------------------------------------------
+# THIS IS A SCREEN, NOT A GATE
+# ----------------------------------------------------------------------------
+# The criteria narrow what is worth looking at and fix what counts as a
+# candidate before the candidates are seen. They have never decided anything on
+# their own, and run 1 is the proof: the screen said "proceed" and the sheet,
+# read by a human, said "undecided". metrics.json records role: screen and
+# decided_by: human review of the contact sheet. The write-up should describe
+# them that way -- pre-declaring them is worth doing, and it does not make them
+# a verdict.
+#
+# ----------------------------------------------------------------------------
+# THE AREA CRITERION IS NOW READ AT TWO DENOMINATORS, AND WHY
+# ----------------------------------------------------------------------------
+# What was declared was a set of shape and position facts: a plausible lip is a
+# MODEST FRACTION OF WHAT WAS SEARCHED, sits low, near the midline, one blob.
+# Under a whole-frame search, `area <= 0.35 of frame` expressed that. The number
+# was the instantiation; the sentence was the criterion.
+#
+# The spatial prior changes the search area, so the instantiation broke:
+#
+#   * area_max -- "modest fraction of WHAT WAS SEARCHED" scales with the search
+#     area, so it is now read against the REGION. Band-filling goes 0.168 of
+#     frame (which passes) to 1.000 of region (which fails).
+#   * area_min -- "not a speckle" does NOT scale with the search area. A lip is
+#     a structure of a certain size on the crop whether or not the search was
+#     narrowed, so this stays FRAME-relative. Measured: read against the region,
+#     a 0.4%-of-frame blob scores 0.023 against a floor of 0.02 and passes --
+#     and centroid_y, centroid_x and largest_component all pass a single small
+#     midline blob, so nothing else would catch it.
+#
+# NO NUMBER CHANGED. The amendment is POST-HOC and metrics.json says so under
+# criteria_provenance: nobody wrote "relative to the search region" before run
+# 1. It is the right reading, arrived at after the literal one broke.
+#
+# With no search region the two denominators coincide exactly, so this reduces
+# to the pre-declared form and run 1 is unaffected. Both quantities are reported
+# on every mask, so runs with and without a prior stay directly comparable on
+# the original frame-relative number.
+#
+# centroid_y is satisfied BY CONSTRUCTION under a bottom-band prior -- the band
+# starts at 2/3, above the 0.50 floor -- so it stops being evidence there. It is
+# kept because it is exactly the criterion that matters with the prior off.
+#
+# `saturates_region` stays as a separate reported flag, marked "sat" on the
+# sheet, and `usable_but_saturating` lists any method that passed while filling
+# its region. area_max now catches that case too, but the two can disagree at
+# the margin and a mask at 0.88 of its region is worth seeing regardless.
+#
+# ----------------------------------------------------------------------------
+# WHAT IT DOES
+# ----------------------------------------------------------------------------
+# Three standard methods on a handful of patients, each rendered beside the
+# source image with the candidate region tinted green:
+#
+#   colour_separation  fixed cut on a redness x saturation discriminant. KEPT
+#                      UNCHANGED as the control, so the adaptive method has
+#                      something to be compared against
+#   otsu_threshold     the same discriminant with a PER-IMAGE cut, chosen inside
+#                      the search region. This is the adaptive threshold
+#   chan_vese          region-based active contour, means taken inside the search
+#                      region. Region-based on purpose: an edge-seeking snake
+#                      assumes the lip-skin edge exists, which is the assumption
+#                      under test
+#
+# ----------------------------------------------------------------------------
+# WHAT TO LOOK AT, AND WHAT DECIDES IT
+# ----------------------------------------------------------------------------
+# metrics.json reports, per method, how many patients produced a plausible lip
+# region -- right size, low on the face, near the midline, one connected blob.
+# The criteria are declared from anatomy in segmentation.PLAUSIBLE BEFORE the
+# methods run and are NOT adjusted afterwards. Loosening one until something
+# passes turns a gate into a formality.
+#
+# `mean_separability` is the number to read first. It is Otsu's eta on the
+# discriminant: 1 means two clean modes, 0 means one blob. If it is low across
+# the board, the discriminant is not bimodal and NO threshold on it could have
+# worked -- which is the protocol's claim, confirmed, whatever the methods
+# scored.
+#
+# THEN LOOK AT THE SHEET. The numbers say a region has the right size and place.
+# They cannot say it traced a lip. This gate ends in a human judgement.
+#
+#   proceed -> build §3.2, SymNose reimplementation
+#   out     -> record in limitations WITH the protocol citation, and the
+#              mirror-difference index (§3.1) carries the symmetry question
+#
+# Either answer is a result. "Out" retires a planned baseline on evidence, which
+# is worth more than a SymNose built on crops that cannot support it.
+#
+# ----------------------------------------------------------------------------
+# GEOMETRY: G1, and this is deliberate in the opposite direction to §3.1
+# ----------------------------------------------------------------------------
+# The mirror index requires G2. This requires G1. The question here is whether
+# the lip-skin distinction survives JPEG compression in the pixels as they are;
+# G2 resamples every row to full width and smooths exactly the local colour
+# structure being tested, so it could only flatter the methods. A "no" at G1 is
+# a real no.
+#
+# ----------------------------------------------------------------------------
+# The PNG is CLUSTER-ONLY -- it renders patient faces. The filename contains
+# "contact_sheet", so the tier guard refuses to let it be marked SHAREABLE.
+# metrics.json beside it is aggregate and may travel.
+#
+# Hashes: run scripts/declare_inputs.py and paste. Do not copy from a chat log.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p4_segmentation_probe.yaml"
+
+schema_version: 1
+phase: p4
+tier: dev
+
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: patient_folders
+    path: "${CLEFT_PHOTOS}"
+    rollup_sha256: c38b24f88c2f69945b4296665346ecb9141d2f424622e7b3775c3bffabb04f1b
+
+task:
+  kind: segmentation_probe
+
+  manifest_artifact: manifest_v1
+  patient_folders: patient_folders
+
+  geometry: g1
+
+  # Fix 2. "none" plus face_mask: false reproduces run 1, where lips and nose
+  # came out together on every patient the discriminant worked on.
+  spatial_prior: bottom
+
+  # Fix 1. Keeps the search off the white padding, which is what run 1's methods
+  # actually segmented. Set false only to re-derive run 1.
+  face_mask: true
+
+  # Re-tune against the UPPER lip now that the fissure constraint prevents the
+  # crossing. Set 0.0 for the run-2 unrelaxed regression check (expect the new
+  # criterion to fail 3 of 9 there, and 9 of 9 at 0.15).
+  contour_relaxation: 0.15
+
+  # The FAIRNESS hypothesis, and a SEPARATE run -- R6, one change at a time.
+  # Leave "none" until the fissure threshold is settled; then "rank" and compare.
+  # Do not tune it on patient 5: the rule must apply identically to everyone.
+  normalisation: none
+
+  # How the lip mask is divided into upper and lower. Shape-derived, so no dark
+  # line is needed and it applies uniformly. "fraction" is the alternative;
+  # "fissure" re-derives run 4 and is kept only for comparison.
+  split_rule: centroid
+
+  # No longer drives the instrument. It still selects which detections are
+  # reported as found, and fissure.sweep still reports what each candidate would
+  # have found -- kept as the EVIDENCE for abandoning the route, not as a knob.
+  # The validation set is chosen on sharpness instead, deliberately.
+  fissure_min_depth: 0.08
+
+  # Nine: three per reporting class. Grade 4-5 faces have the most distorted
+  # anatomy and are where a colour discriminant is most likely to fail, so they
+  # must be in the sample rather than left to chance. A handful, because this is
+  # a gate rather than a measurement -- if the answer is ambiguous at nine, that
+  # is itself informative and the number can go up.
+  n_patients: 9

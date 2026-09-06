@@ -1,0 +1,50 @@
+# ROAD B PHASE 5 — MASKED SCUT AT 768. Build order step 2 (PHASE_6_STRUCTURE).
+#
+# The frozen composition at a new size argument; G1 and G2 bundled, as at 512
+# and as Road A decided. See roadb_p5_masked_scut_512.yaml -- everything there
+# holds here with one number changed:
+#
+# **[MEASURED] at 768 ALL 5,499 faces are upsampled 2.19x from their 350x350
+# sources.** The masked panels render at NATIVE 768 beside the placement
+# panel -- nearest-upscaled, blocky-sharp -- so the interpolation is VISIBLE
+# (confirmed on the first review: smoothed skin, blurred lashes, coarse
+# staircase on the trapezium edge). MANIFEST.json carries `size` and
+# `interpolation_note` so the artifact says what its pixels are.
+#
+# KEEPER, for the reason recorded in roadb_p5_masked_scut_512.yaml: the
+# artifact feeds twelve pretraining cells, and keeper's clean-tree guarantee
+# is the one thing MANIFEST provenance cannot supply. (Road A's masked_v1
+# was built at dev -- the config was born dev and never changed.)
+#
+# ~19 GiB for 5,499 faces at both geometries at 768 (the 224 build was
+# ~1.65 GiB; memory scales with size squared). Cost is a fact to plan
+# around, not an argument (brief §1).
+#
+# CLEFT_SCUT_ROOT must be set.
+#
+#   python -m cleft.run --config configs/roadb_p5_masked_scut_768.yaml
+
+schema_version: 1
+phase: roadb_p5
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: scut_root
+    path: ${CLEFT_SCUT_ROOT}
+    rollup_sha256: 1041ceed0ef458e97c8be845eda30cf7957067fa730a4975a0f83bd8ed4947ec
+
+task:
+  kind: masked_scut
+
+  scut_root: scut_root
+  geometries: ["g1", "g2"]
+  size: 768
+
+  n_faces: 0
+  n_sheet: 6
+  ar_sampling: observed
+
+  write_artifact: true
+  out_version: masked_768_v1
+  checkpoint_every: 250

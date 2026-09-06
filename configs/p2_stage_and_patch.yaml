@@ -1,0 +1,54 @@
+# PHASE 2 BUILD — exit criteria 7, 8 and 10.
+#
+# Stages all 237 crops at both geometries, generates all three patch schemes at
+# both, verifies the per-image mapping over the real cohort, and writes the
+# versioned hashed artifact that Phase 3 consumes.
+#
+# Run the contact sheets first (criterion 9). This is the expensive step and the
+# diagnostics exist so it is not where a structural surprise is discovered.
+#
+# WHAT COMES BACK, in metrics.json:
+#   * aspect-ratio min/max/median, checked against the measured 0.553-1.099
+#   * pad-fraction distribution
+#   * per generator per geometry: patch count, coverage, and for G1 the
+#     white-fraction distribution PER BAND
+#   * the settled anatomy parameters, recorded with the artifact
+#
+# ANATOMY IS SETTLED (three sweeps, 2026-07-28): v_offset 0.04, scale 1.80,
+# scale_x 1.60, box_scale_x 1.00. Those are the PatchConfig defaults and are not
+# overridden here -- the artifact records what was used.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p2_stage_and_patch.yaml"
+
+schema_version: 1
+phase: p2
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: patient_folders
+    path: "${CLEFT_PHOTOS}"
+    rollup_sha256: c38b24f88c2f69945b4296665346ecb9141d2f424622e7b3775c3bffabb04f1b
+
+task:
+  kind: stage_and_patch
+
+  manifest_artifact: manifest_v1
+  patient_folders: patient_folders
+
+  out_version: staged_v1
+
+  # All three, so the region ablation has its control and its comparator built
+  # from one staging pass rather than three that could disagree.
+  generators: ["grid", "anatomy", "random"]
+
+  # Both, so the geometry arm is available. Note the anatomy scheme is G2-only
+  # in practice (PLAN §4.4): at G1 its lateral_orbit nodes are 76% background.
+  # It is still generated at G1 so the artifact records that fact rather than
+  # leaving it to be rediscovered.
+  geometries: ["g1", "g2"]

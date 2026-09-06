@@ -1,0 +1,130 @@
+# PHASE 3 — the minimal training path. Gates 1, 2, 3, 4, 5 and 6.
+#
+# One backbone, whole-image, ImageNet init, the mean label, 5-fold CV over the
+# Phase 1 folds. Scoped deliberately small: this exists to test the HARNESS, not
+# to produce a result. No SCUT, no pretraining, no ladder, no second backbone.
+#
+# ----------------------------------------------------------------------------
+# GEOMETRY: G1, and this is NOT a Phase 7 decision
+# ----------------------------------------------------------------------------
+# G1 is unmodified staging and is the neutral default for gate purposes only. It
+# carries NO implication about the G1-vs-G2 comparison, which is a Phase 7 arm.
+# Recorded here and in metrics.json so the freeze does not silently bake in an
+# arm that has not been run.
+#
+# ----------------------------------------------------------------------------
+# HOW THE GATES ARE RUN
+# ----------------------------------------------------------------------------
+#   gate 1  determinism   run this config TWICE, unchanged, on the same GPU.
+#                         The two predictions.csv must be byte-identical.
+#   gate 2  seed variance run it 10 times, changing ONLY `seed`. Report the
+#                         distribution of pooled OOF PCC: mean, SD, min, max and
+#                         the 95% interval. This sizes the project -- no delta
+#                         smaller than that band is claimable.
+#   gates 3-6             run inside every execution and appear in metrics.json.
+#                         A gate that "mostly passes" is a gate that failed.
+#
+# While gate 1 is running, pause the second run mid-flight and resume it. That is
+# docs/VERIFY_resume.md, and gate 1 is already the right setup for it -- far
+# cheaper to learn the answer here than during a Phase 6 pretraining job.
+#
+# DO NOT turn off use_deterministic_algorithms to make a run pass. If an op has
+# no deterministic kernel, that is the finding; report the op.
+#
+# ----------------------------------------------------------------------------
+# Hashes: run scripts/declare_inputs.py and paste. Do not copy a figure from a
+# chat log -- a wrong hash has already propagated into a second config once.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p3_train_cv.yaml"
+
+schema_version: 1
+phase: p3
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+task:
+  kind: train_cv
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+
+  # ----------------------------------------------------------------------
+  # TRAINABLE PARAMETERS -- the change that unblocked gate 2
+  # ----------------------------------------------------------------------
+  # "full" trained all ~86M ViT-B/16 parameters on 237 images and produced
+  # PCC -0.013, QWK exactly 0.0 (every prediction in one 3-class bin), and RMSE
+  # 0.658 against a label SD of 0.628 -- worse than a constant predictor, with
+  # inner-val best at epoch 1 in three folds of five. Training was damaging the
+  # pretrained representation, not improving it.
+  #
+  # [LITERATURE] For small target datasets, partial fine-tuning is favoured over
+  # full; 237 images against 86M parameters is the textbook over-parameterised
+  # case.
+  #
+  # "head" freezes the backbone and trains only the regression head. Because a
+  # frozen backbone's output is a fixed function of the image, the embeddings are
+  # extracted ONCE and reused across every fold and every seed -- far cheaper,
+  # and it removes the features as a source of seed-to-seed difference.
+  #
+  # It does NOT make the seeds differ in head initialisation alone. An earlier
+  # revision of this comment implied it did. The seed also drives
+  # harness.inner_val_split, so it decides which patients are held out of the
+  # training fold, and the gate-2 band is initialisation AND split variance
+  # combined. See PLAN §4.12.
+  #
+  # If a frozen backbone with a linear head still cannot beat a constant
+  # predictor, STOP. That is a far deeper finding than a training-config problem,
+  # and metrics.json reports `sanity.beats_constant` so it cannot be missed.
+  trainable: head
+
+  geometry: g1
+  # PRIMARY target per §4.2: mean of 5 raters, learnability 0.6022 on the 237.
+  label: mean
+  backbone: vit_b16
+
+  # Early stopping does the work; the budget only bounds it. The void ladder's
+  # fixed 40-epoch budget measured post-collapse endpoints, with inner-val PCC
+  # peaking at epochs 2-11 and decaying to ~0 in 20 of 20 fold-runs.
+  max_epochs: 40
+  patience: 5
+  inner_val_frac: 0.2
+
+  # MSE is the training objective. Selecting on the reported metric would be
+  # selecting on the thing being claimed; both are recorded per epoch regardless,
+  # because the collapse above was visible in PCC while the loss looked fine.
+  monitor: inner_val_mse
+
+  # Recorded in metrics.json under train_config, along with the optimiser, the
+  # loss, the label scale and the trainable policy. The first Phase 3 run
+  # recorded only the epoch policy, so a reader could not tell what produced the
+  # number -- a provenance gap in a keeper run regardless of the result.
+  #
+  # 1e-3 suits a linear head over frozen embeddings; 1e-4 was the full
+  # fine-tuning value and is far too LOW for a linear head, which is the point.
+  # (An earlier revision of this comment said "too high". It was backwards, and
+  # a keeper config's comments are part of its provenance record.)
+  learning_rate: 0.001
+  weight_decay: 0.01
+  batch_size: 32
+
+  # GATE 2 -- RUN, and this is the state that ran it. All ten sweep in ONE job:
+  # one environment, one env.json, per-seed output files, and seed_variance.json
+  # with the distribution. The frozen embeddings are extracted once and reused,
+  # so ten seeds cost barely more than one -- measured at about a minute on a
+  # 0.16 GPU fraction.
+  #
+  # Gate 1's three determinism runs used a single seed, which is what commenting
+  # this list out gives. Comment it out again for any determinism re-run, which
+  # Phase 7 owes when the patch path changes the harness.
+  #
+  seeds: [1337, 2024, 7, 99, 12345, 31337, 4242, 8675309, 271828, 161803]

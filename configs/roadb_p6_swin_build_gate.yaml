@@ -1,0 +1,32 @@
+# ROAD B PHASE 6 — GATE 1: THE SWIN BUILD, ON THE PINNED IMAGE
+#
+# **The one gate that could refute the four-backbone conclusion, run first
+# because it is short** (roadb.PHASE_6_STRUCTURE build order).
+#
+# [MEASURED 2026-08-09, timm 1.0.27] Building swin_base_patch4_window7_224
+# at img_size 512/768 carries the 224 checkpoint's parameters unchanged --
+# zero mismatches -- because the positional machinery is window-relative and
+# nothing learned is interpolated (roadb.SWIN_AT_RESOLUTION). The pinned
+# image has timm 1.0.7; THIS RUN is the confirmation.
+#
+# The criterion is over PARAMETERS: names and shapes identical, tensors
+# equal under pretrained weights, forward produces the 1024-dim embedding.
+# Buffers (shifted-window attention masks in some timm versions) carry no
+# learning and are reported, not gated. A REFUSAL means the resolution axis
+# loses swin at these sizes -- record that before building anything that
+# assumes four backbones.
+#
+# No inputs: the gate reads no data, it builds models and compares.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/roadb_p6_swin_build_gate.yaml"
+
+schema_version: 1
+phase: roadb_p6
+tier: keeper
+seed: 1337
+
+task:
+  kind: roadb_swin_build_gate
+  sizes: [512, 768]
+  pretrained: true

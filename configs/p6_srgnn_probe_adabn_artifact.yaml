@@ -1,0 +1,134 @@
+# PHASE 6 — THE FROZEN PROBE ON THE RE-EXTRACTED ARTIFACT. Cell C of the 2x2.
+#
+# ----------------------------------------------------------------------------
+# THE 2x2, AND WHY THIS CELL IS NOT THE CLEAN ONE
+# ----------------------------------------------------------------------------
+# Two normalisation halves, independently settable:
+#
+#                        | bn1/bn2 SCUT        | bn1/bn2 cleft
+#   ---------------------+---------------------+----------------------------
+#   40 backbone BN SCUT  | A  0.1340 MEASURED  | B  0.0468 MEASURED
+#   40 backbone BN cleft | C  THIS CONFIG      | D  p6_srgnn_probe_adabn_
+#                        |                     |    artifact_full.yaml
+#
+# A is uniform (everything SCUT). B is partially adapted and scored WORSE by
+# 0.087 — the measurement that forced the re-extraction.
+#
+# **C is the other partial cell.** 40 layers calibrated for cleft feeding 2
+# still calibrated for SCUT: internally inconsistent in the opposite direction
+# to B. By B's own mechanism it is NOT expected to be the clean comparison,
+# and it is included because it isolates the two halves — without it, a good
+# result at D could not be attributed between the 40 and the 2.
+#
+# **D is the fully consistent arm** and is the one to read against 0.2529.
+#
+# ----------------------------------------------------------------------------
+# READ THE OUTCOMES — STATED BEFORE EITHER RUNS
+# ----------------------------------------------------------------------------
+# For D (the clean cell):
+#   ~0.25   the whole gap was normalisation; SR-GNN's representation is fine.
+#   ~0.134  the architecture reading is ESTABLISHED — every layer of the
+#           normalisation chain has now been calibrated for cleft, so no
+#           statistics alternative remains.
+#   else    a mechanism nobody has named, and it is recorded as that rather
+#           than assigned to the nearer reading. B is the precedent: the
+#           pre-registered pair can be missed, and being able to say so is
+#           the whole value of registering it.
+#
+# For C: if B's mechanism is right, C should also be depressed relative to D.
+# C above D would mean the partial-adaptation account is wrong, which is worth
+# knowing and is why C is run rather than assumed.
+#
+# **Neither is quotable as a value.** One seed against a regime SD of 0.025.
+#
+# ----------------------------------------------------------------------------
+# HASHES ARE REAL [VERIFIED 2026-08-01] — READY TO LAUNCH
+# ----------------------------------------------------------------------------
+# `p6_extract_srgnn_adabn.yaml` ran and produced
+# `data/embeddings/embeddings_adabn_v1`; the five per-fold rollups below came
+# from `scripts/declare_inputs.py`. They shipped as all-zeros placeholders
+# until then and guard 3 refused the run, which is the placeholder working.
+#
+# **The sibling was filled and this one was not**, and the cross-config
+# invariant in tests/test_smoke_run.py caught it on its first run: a path is
+# immutable, so the same artifact must declare the same hash in every config
+# that references it. That check needs no flipping — it is true when both are
+# placeholders, true when both are filled, and false only in the state that
+# was actually wrong.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p6_srgnn_probe_adabn_artifact.yaml"
+
+schema_version: 1
+phase: p6
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+  - name: ckpt_srgnn_native_masked_g2
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_srgnn_native_masked_g2__5e927402__p6-pt-srgnn-native-g2-v2/pretrained.npz
+    rollup_sha256: c02441760520898e6737ecb18bb1f5aa9e9b9717e23dd5e81bcf614c02e24002
+
+  - name: emb_adabn_fold0
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_adabn_v1/srgnn__scut_masked__g2__native__adabn_fold0
+    rollup_sha256: 128edbd90745eba5c15ef502d04f0c753622a32cd49d69ca5e5d95b6059dab8d
+
+  - name: emb_adabn_fold1
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_adabn_v1/srgnn__scut_masked__g2__native__adabn_fold1
+    rollup_sha256: 953633e46dee4498f4d4990d11e0013538597b44d5c0dfc7d6bf1fdfc824f950
+
+  - name: emb_adabn_fold2
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_adabn_v1/srgnn__scut_masked__g2__native__adabn_fold2
+    rollup_sha256: 4c5ed481765042b9a75e260abd6e4058dd6a07a486e8d049b534801a153d874e
+
+  - name: emb_adabn_fold3
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_adabn_v1/srgnn__scut_masked__g2__native__adabn_fold3
+    rollup_sha256: 13d8e6afed35bc00a16f4d447491bf68a5b520ba6d2a3cc6c337cef6e4526f7b
+
+  - name: emb_adabn_fold4
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_adabn_v1/srgnn__scut_masked__g2__native__adabn_fold4
+    rollup_sha256: d998e068a261613e370259e9db5740bac6fd73fe04a640b624b321e78c102cc3
+
+task:
+  kind: train_graph_cv
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+  checkpoint: ckpt_srgnn_native_masked_g2
+
+  # ONE SET PER FOLD. Each is valid for exactly its own fold, and the run
+  # asserts that fold's test patients did not contribute to its statistics.
+  embeddings_artifacts_by_fold:
+    0: emb_adabn_fold0
+    1: emb_adabn_fold1
+    2: emb_adabn_fold2
+    3: emb_adabn_fold3
+    4: emb_adabn_fold4
+
+  backbone: srgnn
+  init: scut_masked
+  geometry: g2
+  region_scheme: native
+  label: mean
+
+  # Cell C: the graph layers frozen, bn1/bn2 left on SCUT statistics.
+  trainable: classifier
+
+  seeds: [1337]
+
+  max_epochs: 40
+  patience: 5
+  inner_val_frac: 0.2
+  monitor: inner_val_mse
+
+  learning_rate: 0.001
+  weight_decay: 0.01
+  batch_size: 16

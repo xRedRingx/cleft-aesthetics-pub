@@ -1,0 +1,50 @@
+# DIAGNOSTIC 2 of 2 — run this BEFORE configs/p1_build_manifest.yaml.
+#
+# Read-only. Loads one workbook and prints what it found: row count, the rater
+# columns AFTER header normalisation, the grade histogram overall and per rater,
+# the photo id range, and the missing-cell count.
+#
+# Why bother: scoresheet.py has never seen the real workbook. Merged cells, a
+# trailing blank row, a second sheet, a header quirk beyond the doubled spaces —
+# none of that appears in the fixtures. Seeing the normalised rater column names
+# is the single most useful line, because if header matching has failed it fails
+# there and nowhere else.
+#
+# This config inspects the PRIMARY (integer) workbook and, because
+# compare_with_path is set, also loads the text form and reports in one line
+# whether the two are identical. The build asserts that equivalence; this lets
+# you see it before anything depends on it.
+#
+# configs/p1_inspect_scoresheet_text.yaml inspects the text form on its own, for
+# when you want its histogram and normalised headers rather than the comparison.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p1_inspect_scoresheet.yaml"
+#
+# NOTE: the path lives under task:, not inputs: — see p1_scan_folders.yaml.
+
+schema_version: 1
+phase: p1
+tier: dev
+seed: 1337
+
+inputs:
+  # Both workbooks, declared. The integer form is PRIMARY
+  # (configs/p1_build_manifest.yaml); the text form is the equivalence
+  # check this diagnostic exists to perform.
+  - name: scoresheet_primary
+    path: ${CLEFT_SCORESHEET}
+    # Carried from configs/p1_build_manifest.yaml -- the SAME
+    # artifact, so the same rollup. Guard 3 is live here.
+    rollup_sha256: 47a472bd4e5162c8b8fcb5fefc3e7bb4e146febd19c5709172515d3b9bce704d
+  - name: scoresheet_text
+    path: ${CLEFT_SCORESHEET_TEXT}
+    # Carried from configs/p1_build_manifest.yaml -- the SAME
+    # artifact, so the same rollup. Guard 3 is live here.
+    rollup_sha256: d5239cb1c5adea31ba6d9b9644ce6bfdb7a6390b8a58e819027239c7dc8ad1d2
+
+task:
+  kind: inspect_scoresheet
+  # NAMES of declared inputs, not paths.
+  scoresheet: scoresheet_primary
+  compare_with: scoresheet_text

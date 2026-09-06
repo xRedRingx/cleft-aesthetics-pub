@@ -1,0 +1,86 @@
+# PHASE 6 ENTRY GATE, RUN A — the uninterrupted REFERENCE.
+#
+# Pair with configs/p5_synthesis_gate_b.yaml. The two are IDENTICAL except for
+# out_version, and a test asserts that (test_the_two_gate_configs_differ_only_in
+# _out_version) — if they differed in anything else, a byte difference between
+# the two artifacts would have a second possible cause and the gate would prove
+# nothing.
+#
+# ----------------------------------------------------------------------------
+# WHY THE GATE RUNS SMALL AND FIRST
+# ----------------------------------------------------------------------------
+# The full synthesis build is ~90 minutes. Verifying the resume mechanism with
+# two full builds would cost three hours to test a mechanism, and would put the
+# verification AFTER the long run.
+#
+# That ordering is the real argument: a 90-minute job on a preemptible queue may
+# be paused whether or not anyone plans it. Checkpointing should be PROVEN before
+# that happens rather than discovered during it. So the gate runs at 200 faces
+# (~3 min), and the artifact is built once afterwards.
+#
+# ----------------------------------------------------------------------------
+# WHY checkpoint_every IS 50 HERE AND 250 IN THE REAL BUILD
+# ----------------------------------------------------------------------------
+# At 250 with 200 faces there would be ONE checkpoint, and the journal truncation
+# — the part of the resume that can actually be wrong — would barely be
+# exercised. At 50 there are four, so a pause between any two of them tests the
+# same path the real build uses.
+#
+# This is a CONFIG difference, not a code difference. The gate and the artifact
+# run identical code; only the interval and the face count change.
+#
+# ----------------------------------------------------------------------------
+# THE PROCEDURE, AND WHAT COUNTS AS A PASS
+# ----------------------------------------------------------------------------
+# Full detail in docs/VERIFY_checkpoint.md. In short:
+#
+#   1. run THIS config to completion, uninterrupted            -> synth_gate_a
+#   2. run gate_b and PAUSE it mid-build from the Run:AI
+#      console, after at least one checkpoint, then resume     -> synth_gate_b
+#   3. the two artifacts must hash IDENTICALLY, file for file
+#
+# THE PASS CONDITION IS BYTE-IDENTITY, NOT COMPLETION. A job with no
+# checkpointing also finishes after a pause — it just does everything again, with
+# wall time as the only symptom. "It finished" would certify the failure mode.
+#
+# BOTH RUNS ON THE CLUSTER, IN THE PINNED IMAGE. The TPS fit goes through
+# np.linalg.solve and therefore whatever LAPACK the platform ships, so a
+# laptop-built reference compared against a cluster resume could differ for
+# platform reasons wearing a checkpoint failure's costume.
+#
+# ----------------------------------------------------------------------------
+# THE ARTIFACTS THESE PRODUCE
+# ----------------------------------------------------------------------------
+# tier: dev. synth_gate_a and synth_gate_b are EVIDENCE for the gate, not inputs
+# to anything — Phase 6 pretrains on synth_v1 from p5_asymmetry_synthesis.yaml.
+# Once the outcome is recorded in docs/VERIFY_checkpoint.md they can be removed.
+#
+#   export CLEFT_SCUT_ROOT=/home/user/codex/scut/SCUT-FBP5500_v2
+#   python -m cleft.run --config configs/p5_synthesis_gate_a.yaml
+
+schema_version: 1
+phase: p5
+tier: dev
+seed: 1337
+
+inputs:
+  - name: scut_root
+    path: ${CLEFT_SCUT_ROOT}
+    rollup_sha256: 1041ceed0ef458e97c8be845eda30cf7957067fa730a4975a0f83bd8ed4947ec
+
+task:
+  kind: asymmetry_synthesis
+
+  scut_root: scut_root
+  geometries: ["g1", "g2"]
+
+  n_faces: 200
+  n_sheet: 3
+
+  magnitudes: [0.0, 0.015, 0.025, 0.035]
+  ar_sampling: observed
+
+  checkpoint_every: 50
+
+  write_artifact: true
+  out_version: synth_gate_a

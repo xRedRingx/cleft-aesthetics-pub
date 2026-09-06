@@ -1,0 +1,125 @@
+# PHASE 6 — SCUT PRETRAINING: ViT-B/16 ON MASKED SCUT, G1 (trapezium, white
+# corners).
+#
+# Differs from p6_pretrain_vit_b16_original.yaml in ONE task field: `source`.
+# Read that file for the shared reasoning; this header carries only what is
+# masked-specific. The thirty-config lattice is asserted by
+# tests/test_pretrain.py.
+#
+# ----------------------------------------------------------------------------
+# WHAT MASKED CHANGES, AND WHAT IT MUST NOT CHANGE
+# ----------------------------------------------------------------------------
+# The features come from the masked SCUT artifact (Phase 5: the frozen cleft
+# composition applied to SCUT, parity measured at 5,499 faces) instead of the
+# raw images. The LABELS, the SPLIT, the exclusion and every hyperparameter
+# are identical to the original run -- so original-vs-masked differs in the
+# pixels and nothing else. Rows are aligned BY STEM through the artifact's own
+# faces.json; a missing or duplicated stem refuses the run.
+#
+# [DECIDED, brief §3] Masked pretraining exists at all because the geometry
+# arm compares a matched-G1 pipeline against a matched-G2 one, and running it
+# on ImageNet init would measure the geometry effect WITHOUT the domain
+# matching masking provides. (Originally twelve runs; the scheme axis
+# [DECIDED 2026-07-31] took the lattice to thirty.)
+#
+# ----------------------------------------------------------------------------
+# HOW TO READ THIS RUN'S CORRELATION [brief §3.1]
+# ----------------------------------------------------------------------------
+# NOT against the published band. The mask removes information the beauty
+# rating depends on, so a lower score is expected and is not failure. The
+# comparison that matters is against THIS backbone's original run
+# (p6_pretrain_vit_b16_original), taken at review; metrics.json records
+# `band_check.applies: false` with `compare_against` naming it, and
+# `checkpoint_consumable` stays null until that review.
+#
+# ----------------------------------------------------------------------------
+# THE MASKED ARTIFACT'S HASH [MEASURED 2026-07-31]
+# ----------------------------------------------------------------------------
+# data/scut/masked_v1 was built by run p5-masked-scut-3 -- 5,499 faces at both
+# geometries, 1.66 GB, streamed, checkpointed and published with MANIFEST.json.
+# The rollup below is that run's own `artifact.rollup_sha256_for_configs`
+# (metrics.json), the whole-directory rollup guard 3 verifies at launch. This
+# config shipped with an all-zeros placeholder until the artifact existed; the
+# guard refused to run it, which is the placeholder working.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p6_pretrain_vit_b16_masked_g1.yaml"
+
+schema_version: 1
+phase: p6
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: scut_root
+    path: ${CLEFT_SCUT_ROOT}
+    rollup_sha256: 1041ceed0ef458e97c8be845eda30cf7957067fa730a4975a0f83bd8ed4947ec
+
+  # Referenced by this NAME ("masked_scut") from the task, by convention: a
+  # task field naming it would give original configs a knob that changes
+  # nothing and the lattice a second differing field.
+  - name: masked_scut
+    path: /home/user/codex/cleft-aesthetics/data/scut/masked_v1
+    # [MEASURED 2026-07-31] artifact.rollup_sha256_for_configs from run
+    # p5-masked-scut-3 -- the artifact build's own metrics.json (5,499
+    # faces, both geometries, 1.66 GB). Guard 3 verifies it at launch.
+    rollup_sha256: 7c08f8657afeeb49fd34377fba9cd20241b2359a208d418a1dfa6399dc43708b
+
+task:
+  kind: pretrain
+
+  scut_root: scut_root
+
+  backbone: vit_b16
+  source: masked_g1
+  # Transformers have no region structure; the scheme axis is the
+  # graph backbones' [DECIDED 2026-07-31]. The loop refuses any
+  # other value here -- a knob that cannot act records an arm that
+  # never ran.
+  region_scheme: none
+
+  expect_train: 3300
+  expect_test: 2199
+
+  # [DECIDED 2026-07-31] FIXED 30-epoch budget, best-checkpoint selection by
+  # inner_val_pcc -- NO early stopping, and deliberately no patience field.
+  # The four SR-GNN scheme originals showed patience terminating on noise in
+  # a flat MSE region (anatomy epochs 5 vs 7: 2.3e-5 apart): run length
+  # tracked luck, not scheme, and none of the eight pre-policy runs had
+  # converged -- inner-val PCC was still climbing at every stopping point.
+  # The replay over all eight curves showed a monitor switch only moves where
+  # the noise bites. A fixed budget makes the arms comparable BY CONSTRUCTION
+  # and the cost knowable in advance; those eight runs are SUPERSEDED (kept,
+  # not deleted -- their curves are the evidence for this decision).
+  #
+  # This does NOT contradict Phase 3 gate 4: the void ladder's fixed budget
+  # measured post-collapse endpoints on 152 cleft samples (peaks at epochs
+  # 2-11, decay to ~0 in 20/20 fold-runs); on SCUT's 3,300 there is no
+  # collapse -- PCC climbs monotonically in all eight curves. Early stopping
+  # STAYS for the cleft ladder, where collapse is the documented behaviour.
+  # N=30 covers every observed run except SR-GNN original's 34, and PCC has
+  # largely plateaued by then. Selection on inner_val_pcc matches the primary
+  # metric; legitimate because inner-val is carved from the TRAIN side and
+  # the test set is disjoint, touched once.
+  epochs: 30
+  inner_val_frac: 0.1
+  monitor: inner_val_pcc
+
+  # [DECIDED 2026-07-31, from image measurements] FALSE, and settled: flag-off
+  # in the image, vit_b16/swin_b/srgnn are BITWISE (repeat-grad and post-
+  # restore step 0.0) so the flag buys them nothing -- and it CANNOT fix
+  # agnet there: the deterministic roi_align substitution needs
+  # torch.compile -> inductor -> a C++ compiler the image does not have
+  # (InvalidCxxCompiler, measured). AG-Net's recorded property instead:
+  # deterministic to ~2.3e-05 (post-restore 2.26e-05 image / 2.31e-05 local),
+  # its resume check is a tolerance, and any AG-Net delta needs its own seed
+  # band measured under that condition. models/{agnet,srgnn}.py
+  # TRAINING_DETERMINISM carry the full record; if this is ever set true, the
+  # loop routes through the frozen determinism.configure (CUBLAS workspace).
+  deterministic: false
+
+  learning_rate: 0.0001
+  weight_decay: 0.01
+  batch_size: 32
+
+  checkpoint_every: 1

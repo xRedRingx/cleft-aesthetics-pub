@@ -1,0 +1,206 @@
+# ############################################################################
+# GEOMETRY DEFECT RESOLVED 2026-07-30 — the invariant was the defect
+# ############################################################################
+#
+# The former header here declared "G2 MUST HAVE ZERO WHITE PIXELS", citing
+# p2-stage-1's white_fraction_max 0.0. That figure is a PATCH-GEOMETRY constant
+# -- 1 - min(patch coverage) against the full-square G2 trapezium, zero by
+# construction, no pixels consulted -- misread as a pixel fact (R2). The frozen
+# cleft composition (stage, then unwarp the padded square; stage_build.py) was
+# replayed and measured: cleft G2 white ~= the PAD FRACTION. 0.259 at the median
+# AR, never zero. Zero-white SCUT G2 would have CREATED a domain gap, exactly as
+# levelling would have.
+#
+# The actual defect was the mask's coordinate frame: the trapezium was applied
+# square-relative AFTER staging, where cleft crops arrive with it baked
+# content-relative BEFORE. Fixed: apply_arrival_mask -> stage -> unwarp, the
+# frozen composition verbatim, asserted BIT-IDENTICAL to it by test. The
+# left/right white gap is matched behaviour with a measured cause
+# (resize_nearest's left-biased floor mapping, not odd pad splits). Full record:
+# masked.G2_WHITE_DEFECT, docs/FROZEN_KNOWN_STALE.md §3.
+#
+# Read the sheet against the corrected expectations in metrics.json
+# (`expected_white_fraction`): G1 near 1 - 0.802*(1 - pad), G2 near the pad
+# fraction. `write_artifact: true` is unblocked once the re-rendered sheet is
+# reviewed.
+#
+# ----------------------------------------------------------------------------
+
+# PHASE 5 §2 — MASKED SCUT VARIANTS, AND THE SHEET THAT SHOWS THEM.
+#
+# Produces the pretraining input Phase 6 consumes. It also closes a gap a
+# reachability audit found: the modules, the tests and a green suite all existed
+# with NO WAY TO PRODUCE THE SET. "Configs, never flags" (PLAN §2.3) means the
+# absence of a config IS the absence of a runnable deliverable.
+#
+# ----------------------------------------------------------------------------
+# SHAREABLE, AND LOCAL
+# ----------------------------------------------------------------------------
+# SCUT-FBP5500 is public and non-clinical, so unlike every previous phase the
+# sheet is SHAREABLE and the whole thing runs on the laptop against real faces
+# with real landmarks. The clinical boundary is unchanged: cleft images stay on
+# the cluster. Only SCUT moves freely.
+#
+# ----------------------------------------------------------------------------
+# THE SHEET ANSWERS TWO QUESTIONS IN ONE PASS
+# ----------------------------------------------------------------------------
+# Each row is: the PLACEMENT drawn on the source face, then the MASKED OUTPUT at
+# each geometry, then the EXPECTED CLEFT TRAPEZIUM at the median cleft AR.
+#
+#   placement   is the trapezium in the right place ON THE FACE? Yellow content
+#               box, magenta trapezium edges, cyan landmark midline.
+#   masked      does the RESULT look like a cleft crop?
+#   cleft shape drawn from staging.CLEFT_STAGED_GEOMETRY, so that judgement is a
+#               VISUAL COMPARISON rather than a memory test. No cleft image is
+#               used or needed -- the shape comes from the recorded numbers.
+#
+# WHAT TO LOOK FOR: does the trapezium span brow to just below the lower
+# vermillion, as it does on a cleft crop? Is the midline on the face rather than
+# the frame? Does the G1 result have white corners like the cleft crops that
+# arrived that way, and does G2 look plausible rather than grotesque?
+#
+# ----------------------------------------------------------------------------
+# PLACEMENT DECISIONS ALREADY TAKEN — all in the config so a sweep is a config
+# change and the values land in metrics.json
+# ----------------------------------------------------------------------------
+#   LOWER_MARGIN 0.06   reviewed on the placement sheet: lower vermillion
+#                       visible, no chin. No sweep run and none needed.
+#   levelling OFF       the cleft crops are NOT levelled (observed on the Phase 2
+#                       contact sheet), so levelling SCUT would CREATE the domain
+#                       gap it was meant to close. SCUT's tilt spread (SD 3.1°,
+#                       37% beyond 2°) is a MATCHED PROPERTY, not a defect.
+#   midline             from the landmarks, never the frame: measured 8.9px mean
+#                       offset, max 57px, against a crop only ~95px wide.
+#
+# ----------------------------------------------------------------------------
+# PARITY IS MEASURED, NOT CLAIMED FROM A SHARED CODE PATH
+# ----------------------------------------------------------------------------
+# Every geometry call goes through the FROZEN cleft path -- trapezium.mask,
+# staging.stage, trapezium.unwarp -- with no reimplementation, because a second
+# implementation is where the two domains would silently diverge. That is an
+# argument for parity. The DISTRIBUTIONS are the evidence.
+#
+# metrics.json reports aspect ratio, pad fraction and white fraction against the
+# recorded cleft figures, per geometry, as GAPS RATHER THAN A VERDICT. There is
+# deliberately no pass/fail: what counts as close enough on a domain gap is a
+# judgement about pretraining transfer, not a threshold justifiable here.
+#
+# Read `expected_white_fraction` against the produced white fractions:
+# G1 near 1 - 0.802*(1 - pad_mean) = 0.401, G2 near pad_mean = 0.253. G2 is
+# lower than G1 but NOT zero -- the frozen path stretches the pad into it, for
+# cleft exactly as here. (The old expectation, 0.198 for G1 and ~zero for G2,
+# was the square-relative frame -- the same wrong frame the build itself had.)
+#
+# ----------------------------------------------------------------------------
+# THE ARTIFACT — NOW THE DELIVERABLE OF THIS CONFIG
+# ----------------------------------------------------------------------------
+# **[MEASURED 2026-07-31] Three runs of this config produced no artifact.** The
+# sheet was reviewed and approved 2026-07-30 and the parity measured at 5,499
+# faces, but every run left `write_artifact: false`, so data/scut/masked_v1 --
+# which the eight p6_pretrain masked configs declare as an input -- never
+# existed on any machine. Phase 5 exit criterion 10 asked for the variants
+# built, versioned and hashed; the persistence step was never switched on.
+#
+# This config now ships in the ARTIFACT-PRODUCING mode, and the task refuses
+# the silent combination (n_faces: 0 with write_artifact: false) outright. The
+# build is streamed to memmaps, checkpointed every `checkpoint_every` faces
+# (a Run:AI pause resumes instead of restarting), assembled in
+# masked_v1.inprogress, and renamed into place only when complete -- with
+# MANIFEST.json (per-file hashes, payload rollup, generating run) inside.
+# ~1.65 GiB for 5,499 faces at both geometries. The task still refuses to
+# overwrite an existing version (PLAN §2.6) -- create v2, never modify v1.
+#
+# **After the run, read metrics.json `artifact.rollup_sha256_for_configs`**:
+# that is the whole-directory rollup guard 3 verifies, and the value to paste
+# over the placeholder hashes in the eight p6_pretrain_*_masked_*.yaml configs.
+#
+# For a sheet-only review pass (no artifact), set n_faces to a small number.
+#
+# CM152 is excluded from every variant: its landmark file is shipped empty by the
+# dataset authors. It falls on the TEST side of the official 60/40 split, so the
+# pretraining training set is untouched -- 3300 train, 2200 -> 2199 test, 5499.
+#
+#   .\scripts\test.ps1
+#   python -m cleft.run --config configs/p5_masked_scut.yaml
+
+schema_version: 1
+phase: p5
+tier: dev
+seed: 1337
+
+# ----------------------------------------------------------------------------
+# THE PATH COMES FROM THE ENVIRONMENT, AND THE HASH VERIFIES WHAT IT RESOLVED TO
+# ----------------------------------------------------------------------------
+# SCUT is the first dataset in this project that exists on BOTH machines, so it is
+# the first config that cannot name a single path:
+#
+#     cluster : /home/user/codex/scut/SCUT-FBP5500_v2
+#     laptop  : C:\data\scut-fbp5500\SCUT-FBP5500_v2
+#
+# This previously declared the laptop path, which made the config laptop-only —
+# and the failure it produced on the cluster was not "path not found" but a
+# SILENT CONCATENATION onto the repo root,
+# /home/user/codex/cleft-aesthetics/C:/data/..., reported as MISSING data rather
+# than as a malformed declaration.
+#
+# Set CLEFT_SCUT_ROOT to the directory on whichever machine you are on:
+#
+#     cluster : export CLEFT_SCUT_ROOT=/home/user/codex/scut/SCUT-FBP5500_v2
+#     laptop  : $env:CLEFT_SCUT_ROOT = "C:\data\scut-fbp5500\SCUT-FBP5500_v2"
+#
+# The declared rollup_sha256 then verifies whatever was resolved, so the
+# indirection costs nothing in provenance: guard 3 still refuses to start if the
+# data is not the data. config.yaml is copied into the run directory VERBATIM, so
+# it preserves the ${CLEFT_SCUT_ROOT} declaration, and inputs.json records the
+# RESOLVED path beside the rollup that verifies it. Declaration and resolution are
+# both on disk.
+#
+# The variable must be CLEFT_-prefixed: unrestricted expansion would let a
+# committed config read any variable in the environment and paste it into a run
+# record that is then shared.
+#
+# CAVEAT ON THE SHARED HASH [R2]: the byte-identity check covered Images/ and
+# facial landmark/ (11,000 files, 172,020,158 bytes). This rollup is a WHOLE-TREE
+# hash (11,017 files, 193,973,184 bytes), so 17 files sit inside the hash and
+# outside the verification. If guard 3 DISAGREES on the cluster, look at those
+# first — see dataset.VERIFIED_COPIES["verification_scope"].
+
+inputs:
+  - name: scut_root
+    path: ${CLEFT_SCUT_ROOT}
+    rollup_sha256: 1041ceed0ef458e97c8be845eda30cf7957067fa730a4975a0f83bd8ed4947ec
+
+task:
+  kind: masked_scut
+
+  scut_root: scut_root
+  geometries: ["g1", "g2"]
+
+  # 0 = the full cohort, 5,499 faces. With write_artifact: true below this is
+  # the artifact build; a small number here is the sheet-only review mode.
+  n_faces: 0
+  n_sheet: 6
+
+  # BOOTSTRAP over the 237 raw cleft ratios (scut/ar_distribution.AR_OBSERVED).
+  #
+  # Was "empirical" — a piecewise-linear inverse CDF over 21 percentiles — and
+  # the full 5,499-face build showed why that is wrong: it realised 2.75%
+  # landscape against the cohort's 0.42%, or 151 landscape faces where the
+  # cohort implies ~23. Interpolation spreads the top 5% of mass uniformly
+  # across [p95, p100] = [0.9173, 1.0986], a bin holding ONE observation at its
+  # very top, so it invents a uniform tail across a gap the data says is empty.
+  # The arithmetic closes exactly: (1.0986-1.0)/(1.0986-0.9173)*0.05 = 0.02719
+  # predicted against 0.0275 observed.
+  #
+  # The bootstrap draws with replacement from the observed values, so it
+  # reproduces the cohort exactly including the sparse tail — 1 value above 1.0
+  # in 237 = 0.42%, the cohort's own rate — and it REMOVES the interpolation
+  # step rather than adding a correction on top of it.
+  #
+  # "empirical" and "uniform_range" are kept so earlier runs can be re-derived;
+  # "fixed_median" is the no-variation control.
+  ar_sampling: observed
+
+  write_artifact: true
+  out_version: masked_v1
+  checkpoint_every: 250

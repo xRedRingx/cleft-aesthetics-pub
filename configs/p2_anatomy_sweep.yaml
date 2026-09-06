@@ -1,0 +1,106 @@
+# PHASE 2 — anatomy placement sweep. One job instead of six configs.
+#
+# The first anatomy sheet showed the region set is consistently wrong in the same
+# direction on every face: correct relative to each other, but as a set too high,
+# too narrow and too small. That is a systematic offset in my coordinates, not a
+# mapping defect, so it is corrected with three global transforms rather than 27
+# individual edits:
+#
+#   anatomy_v_offset  shift the set DOWN
+#   anatomy_scale     make the boxes BIGGER  (size)
+#   anatomy_scale_x   push the pairs further APART  (spread)
+#
+# Size and spread are deliberately separate knobs: "wider" and "bigger" are
+# different corrections and probably need different amounts.
+#
+# This renders the same 3 faces under every combination below, on one sheet, each
+# panel labelled with its parameters. Comparing six separate sheets from memory is
+# how "it looks a bit better" replaces a decision.
+#
+# LAYOUT: one row per variant, one column per face, in reading order. The variant
+# list in metrics.json is in the same order.
+#
+# Boxes are NAMED (ala_L, philtral_R, verm_L ...), so a specific region can be
+# checked against a specific structure rather than judged on gross placement.
+#
+# Geometry is G2 deliberately -- see the note at the bottom.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p2_anatomy_sweep.yaml"
+
+schema_version: 1
+phase: p2
+tier: dev
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: patient_folders
+    path: "${CLEFT_PHOTOS}"
+    rollup_sha256: c38b24f88c2f69945b4296665346ecb9141d2f424622e7b3775c3bffabb04f1b
+
+task:
+  kind: anatomy_sweep
+
+  manifest_artifact: manifest_v1
+  patient_folders: patient_folders
+
+  # Three faces, one per reporting class. Small on purpose: 3 faces x 6 variants
+  # is already 18 panels, and beyond that nothing is legible.
+  n_patients: 3
+
+  # SWEEP 3, the last one (2026-07-28). Settled and held fixed:
+  #
+  #   v_offset  0.04   sweep 1, row 4   vertical placement
+  #   scale_x   1.60   sweep 2, row 3   spread  (2.0 rejected: it clamped)
+  #
+  # Remaining: the boxes need to be BIGGER. That is anatomy_scale, which moves
+  # both dimensions -- not anatomy_box_scale_x, which is width only. The report
+  # was "bigger", not "wider", and spread is already solved.
+  v_offsets: [0.04]
+  scales: [1.3, 1.6, 1.8, 1.9]
+  scales_x: [1.60]
+  box_scales_x: [1.0]
+
+  # The requested list was [1.3, 1.6, 2.0, 2.5]. Computed before running it:
+  # 2.0 clamps lateral_orbit and 2.5 clamps commissure too, so both are excluded
+  # by number and would have spent two of four panels showing known non-options.
+  # The clamping ceiling sits between 1.9 (clean, redundancy 1.48) and 2.0. Since
+  # the rule is "the largest clean setting is the answer", the sweep now spans up
+  # TO that ceiling instead of past it.
+  #
+  # Add 2.5 back if a deliberately-too-big anchor would help the eye calibrate;
+  # it will be excluded automatically and labelled with "!".
+
+  # TWO THINGS BOUND THE ANSWER, and both are reported per variant in
+  # metrics.json under "per_variant".
+  #
+  # 1. CLAMPING. Bigger boxes at sx=1.60 push the lateral regions toward the
+  #    frame edge. A clamped box is pulled back inside, labelled "!" on the
+  #    sheet, and its variant is excluded from "candidates" -- it only looks
+  #    bigger.
+  #
+  # 2. OVERLAP. Bigger boxes overlap their neighbours. Watch "redundancy" (mean
+  #    number of regions stacked on each covered pixel; 1.0 is a partition) and
+  #    "max_pairwise_iou". At some size the 27 regions stop being 27 structures
+  #    and become 27 views of the same area -- at which point the scheme still
+  #    emits 27 nodes and a plausible number while no longer testing the claim
+  #    that clinically predefined LOCATIONS carry information.
+  #
+  # If a clamp and a high redundancy appear at the same variant, the ceiling on
+  # box size is real and the largest clean setting is the answer.
+
+  # G2, because the region-scheme ablation has to run there anyway:
+  #
+  #   MEASURED on the first sheet -- anatomy regions touch ZERO white under G1
+  #   (worst coverage 1.0), where the grid had 10 of 27 patches carrying up to
+  #   50% white. The regions are small and placed inward, so they never reach
+  #   the mask edge. Anatomy-vs-grid and G1-vs-G2 are therefore CONFOUNDED at
+  #   G1: a difference measured there is partly a background-exposure
+  #   difference. At G2 both schemes see zero background.
+  #
+  # Judging placement at G2 also matches where the comparison will be made.
+  geometry: g2

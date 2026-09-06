@@ -1,0 +1,15 @@
+# The canonical build uses `docker/` as its context (see build-image.yml), so the
+# build cannot see application code at all -- there is nothing in docker/ except
+# the Dockerfile and requirements.txt. That is structural, not a rule to follow.
+#
+# This file is the fallback for anyone who builds from the repository root by
+# hand. It denies everything and then re-admits only requirements.txt, so a
+# root-context build still cannot bake code into the image.
+#
+# The old .dockerignore carried a warning that `data/` must not be excluded
+# wholesale because it was an importable python package sharing a name with the
+# artifact directory. That collision is gone by construction: the package is
+# src/cleft/data/ and artifacts are data/. Do not reintroduce a flat layout.
+
+*
+!docker/requirements.txt

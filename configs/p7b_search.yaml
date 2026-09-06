@@ -1,0 +1,218 @@
+# PHASE 7B — THE PRE-REGISTERED SEARCH. ONE JOB, TWENTY-FOUR TRIALS.
+#
+# ----------------------------------------------------------------------------
+# WHAT IS AND IS NOT IN THIS FILE
+# ----------------------------------------------------------------------------
+# The budget, the search space, the selection rule and the exhaustion
+# criterion are NOT config fields. They live in `src/cleft/phase7b.py`, where
+# `tests/test_phase7b.py` checks them — the space must enumerate to exactly the
+# declared budget, the selection rule refuses a trial carrying any test-fold
+# quantity, and the exhaustion threshold is derived from the baseline arm's own
+# SD rather than written down.
+#
+# **A pre-registration a config could edit is not a pre-registration.** This
+# file supplies only the DATA: which embedding sets the space reads, and the
+# winner's seed list.
+#
+# ----------------------------------------------------------------------------
+# ONE JOB, AND WHY
+# ----------------------------------------------------------------------------
+# The search is the artifact — brief §4, report the search, not the winner. One
+# run directory holds one config, one env.json, one inputs.json and 24 trial
+# records. Twenty-four directories would make "which twenty-four constituted
+# the search" a join the reader performs, and that is exactly the join a
+# twenty-fifth could slip through. The budget is enforceable in-process here:
+# `configurations()` raises on a mismatch, so a single walk cannot exceed it.
+#
+# **Checkpointed per trial** into `trials.json`, and resumed from it. PLAN §2.7:
+# run identity survives a pause and TRAINING DOES NOT — the pod reattaches the
+# directory and restarts at zero with no symptom but wall time.
+#
+# ----------------------------------------------------------------------------
+# THE OUT-OF-FOLD DISCIPLINE
+# ----------------------------------------------------------------------------
+# Each trial reports inner-validation ONLY, and no out-of-fold prediction is
+# computed for it at all. The OOF number exists once, for the configuration
+# selection already chose. A score that is never computed cannot be ranked on,
+# which is a stronger guarantee than one computed and refused.
+#
+# ----------------------------------------------------------------------------
+# TWO DECLARED DIVERGENCES FROM THE LADDER — see phase7b.BASELINE
+# ----------------------------------------------------------------------------
+# 1. **monitor** — this phase monitors and selects on `inner_val_pcc`; every
+#    ladder arm early-stops on `inner_val_mse`. PCC is the primary metric and
+#    this phase's output is a PCC comparison.
+# 2. **head_fit_procedure** — every trial fits in closed form, because
+#    `harness.run_fold` computes the held-out fold's predictions as part of its
+#    job. **The winning configuration must be re-run through `train_cv` before
+#    its number is quoted against the ladder's 0.2520.**
+#
+# Both are registered in `BASELINE['also_varies']` with licences, on
+# `ladder.LICENCES`' rule: a second factor is a recorded design decision or it
+# is a defect.
+#
+# ----------------------------------------------------------------------------
+# STATE
+# ----------------------------------------------------------------------------
+# **[VERIFIED 2026-08-02] All fourteen embedding sets are declared.** The
+# twelve pooling rollups came from `p7b_extract_blocks.yaml`, whose
+# reproduction check passed bit-identical at block 12 with the class token —
+# so the eleven depths that have no reference rest on an agreement that held
+# exactly.
+#
+# **[VERIFIED 2026-08-02] Every input is declared — nothing is pending.** The
+# five per-seed baseline vectors are 5,644 bytes each, consistent with 237
+# rows apiece, which is the shape exit criterion 4's paired BCa needs on the
+# baseline side.
+#
+# `phase7b.verify_available` independently refuses the search unless every
+# configuration can run — running 12 of 24 would break the budget and the
+# exhaustion window together.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p7b_search.yaml"
+
+schema_version: 1
+phase: p7b
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+  # The tuned arm's own representation, and the ensemble partner. Both
+  # verified 2026-08-02 with the Stage D1 batch.
+  - name: set_vit_b16__imagenet__g1
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_g1_ladder_v1/vit_b16__imagenet__g1
+    rollup_sha256: ba4b12535f60aca4cc679246a60ecbcdc880c5ca66319937126e4f85c632d7ab
+
+  - name: set_swin_b__imagenet__g1
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_g1_ladder_v1/swin_b__imagenet__g1
+    rollup_sha256: 52c99db13a9f59c43a9685c6b792e11ed55dec6ea18263e8fbde229f886fd40e
+
+  # ---- the pooling axis. VERIFIED 2026-08-02 from p7b_extract_blocks.yaml ---
+  # NOTE block12_cls hashes to 39a4d024… while the reference set it reproduces
+  # hashes to ba4b1253…. The ARRAYS are bit-identical — the reproduction check
+  # asserted exactly that — and the rollups differ because a rollup covers
+  # metadata.json too, where this set records block and token and the
+  # reference does not. Compare arrays, not rollups.
+  - name: set_vit_b16__imagenet__g1__block2_cls
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_p7b_blocks_v1/vit_b16__imagenet__g1__block2_cls
+    rollup_sha256: 9393426c62bcc7160bcf27797caf04aef6ce12c0499ca0bab69564e3703cd8c6
+
+  - name: set_vit_b16__imagenet__g1__block2_mean_patch
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_p7b_blocks_v1/vit_b16__imagenet__g1__block2_mean_patch
+    rollup_sha256: 5b1a4ab7d79481a81e760ec3d133480274dc241a733b096e9a241dd0bb956d9e
+
+  - name: set_vit_b16__imagenet__g1__block4_cls
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_p7b_blocks_v1/vit_b16__imagenet__g1__block4_cls
+    rollup_sha256: 3aea2794873eec5d247d9cc7650b526d42e0ea22ca7850ef1177a11549d89e6f
+
+  - name: set_vit_b16__imagenet__g1__block4_mean_patch
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_p7b_blocks_v1/vit_b16__imagenet__g1__block4_mean_patch
+    rollup_sha256: c3a219c4703a873aa21a64fb3d15383d7d64a65a25c302838c51a782fd111c5c
+
+  - name: set_vit_b16__imagenet__g1__block6_cls
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_p7b_blocks_v1/vit_b16__imagenet__g1__block6_cls
+    rollup_sha256: 6416a7324f1832d763d24038ee863e259e774a77f3354c10b3c2ba4012bad0e8
+
+  - name: set_vit_b16__imagenet__g1__block6_mean_patch
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_p7b_blocks_v1/vit_b16__imagenet__g1__block6_mean_patch
+    rollup_sha256: 92f0850c74dbd88b44adfe1a417daa92dd0e950d17899bdbf87835120d6e2228
+
+  - name: set_vit_b16__imagenet__g1__block8_cls
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_p7b_blocks_v1/vit_b16__imagenet__g1__block8_cls
+    rollup_sha256: 2abc380d061d52bb4a7c9572c0b754e8d14f12c7b2ab5ed71801703b07352fa7
+
+  - name: set_vit_b16__imagenet__g1__block8_mean_patch
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_p7b_blocks_v1/vit_b16__imagenet__g1__block8_mean_patch
+    rollup_sha256: b01117f4dca86687eff4f9390aec5be83849c3fe280ae9d626a47c1765d324ee
+
+  - name: set_vit_b16__imagenet__g1__block10_cls
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_p7b_blocks_v1/vit_b16__imagenet__g1__block10_cls
+    rollup_sha256: 05880226e461408b443601f75c3999c838f57bf057847d43f0c57a3fe3f33fd1
+
+  - name: set_vit_b16__imagenet__g1__block10_mean_patch
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_p7b_blocks_v1/vit_b16__imagenet__g1__block10_mean_patch
+    rollup_sha256: ef4526105a0d944a6279316806e74387e24bc073cc0a8b50d286d502965bef4b
+
+  - name: set_vit_b16__imagenet__g1__block12_cls
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_p7b_blocks_v1/vit_b16__imagenet__g1__block12_cls
+    rollup_sha256: 39a4d0243950c4289e964a019e531309435edbe521d291e29ff30abf4863fb27
+
+  - name: set_vit_b16__imagenet__g1__block12_mean_patch
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_p7b_blocks_v1/vit_b16__imagenet__g1__block12_mean_patch
+    rollup_sha256: 46c9324f0888aae7d84eb4471a90f16bb56f4f433ae3f5b0ce64d567a4624219
+
+  # ---- exit criterion 4: the untuned arm's five out-of-fold vectors ---------
+  # **FIVE FILE INPUTS, not the run directory.** [MEASURED 2026-08-02] the
+  # baseline run holds `seed_<N>__predictions.csv` per seed and no pooled file
+  # at all, so naming one would compare the tuned arm against a single seed of
+  # the arm it is tuning. The comparison is per seed
+  # (`phase7b.COMPARISON_RULE`) and needs all five.
+  #
+  # Averaging them into one vector is NOT the alternative: mean-pooling
+  # predictions is an ensemble, it cancels independent error, and the averaged
+  # vector's PCC exceeds the mean of the five — so the averaged baseline would
+  # not score 0.2520 and the bar would move.
+  #
+  # **And not the directory either**, which contains `code/` — a git worktree
+  # at the run's SHA (PLAN §2.4). Its rollup would cover the whole source tree:
+  # large, and it would move whenever anything in that worktree was touched,
+  # so guard 3 would fail on a run whose predictions were untouched. Scoping
+  # the hash to a glob is not available — `provenance/hashing.py` is frozen,
+  # and reaching into the provenance apparatus to tidy a Phase 7B input is the
+  # change PLAN R5 says to escalate rather than make. Per-file is better
+  # regardless: each vector is hashed on its own, and guard 3 names which one
+  # moved.
+  #
+  # Verified 2026-08-02, one hash per vector. The task additionally verifies
+  # the five reproduce 0.2520 within 5e-3 before pairing anything against
+  # them — a wrong run directory would otherwise complete, produce intervals,
+  # and compare the tuned arm against a different arm entirely.
+  - name: baseline_oof_seed_1337
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p7/p7_d1_vit_b16_imagenet_g1__3f71a6a9__p7-d1-vit-imagenet/seed_1337__predictions.csv
+    rollup_sha256: 135a8788f557f6731a1f61ad0f4f4d46618e60065084201bc59e61c43a596d8d
+
+  - name: baseline_oof_seed_2024
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p7/p7_d1_vit_b16_imagenet_g1__3f71a6a9__p7-d1-vit-imagenet/seed_2024__predictions.csv
+    rollup_sha256: f925cfb92924b2d26d8d8cb2bd88e643b998d4fd17dfe1e863492cc5c9ac6043
+
+  - name: baseline_oof_seed_7
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p7/p7_d1_vit_b16_imagenet_g1__3f71a6a9__p7-d1-vit-imagenet/seed_7__predictions.csv
+    rollup_sha256: a046a97def21b860c080a4d6b5e2461a0b959298884f292f9475850e641090af
+
+  - name: baseline_oof_seed_99
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p7/p7_d1_vit_b16_imagenet_g1__3f71a6a9__p7-d1-vit-imagenet/seed_99__predictions.csv
+    rollup_sha256: 739afa4896b55d7e6e3d894799e47b6367c0450d255a434e31f8b79578aa4865
+
+  - name: baseline_oof_seed_12345
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p7/p7_d1_vit_b16_imagenet_g1__3f71a6a9__p7-d1-vit-imagenet/seed_12345__predictions.csv
+    rollup_sha256: ff0aa153751f49a65f28ace42e60104e0d192f929da8f43a2ff362b6368e342e
+
+task:
+  kind: phase7b_search
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+
+  # The tuned arm's operating point: ViT-B/16 ImageNet at G1, mean label.
+  geometry: g1
+  label: mean
+  inner_val_frac: 0.2
+
+  # Exit criterion 3 — the WINNER's own band, over its own five seeds. The
+  # ladder's transformer seed count, and the same spine (ladder.SEED_POOL) so
+  # it is comparable seed-for-seed with the arm it is tuning.
+  seeds: [1337, 2024, 7, 99, 12345]
+
+  # Exit criterion 4 needs no task field: the comparison is driven by the
+  # `baseline_oof_seed_<seed>` INPUTS above, the same way the embedding sets
+  # are driven by `set_<name>`. Absent, the run completes and metrics.json
+  # says criterion 4 is UNMET rather than staying silent.

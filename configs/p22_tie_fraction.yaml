@@ -1,0 +1,78 @@
+# EXACT-TIE FRACTION -- how many of the 27,966 pairs have
+# EXACTLY EQUAL panel means?
+#
+# A PRECONDITION of Phase 22's target-map ruling, not a Phase 22
+# arm. phase22.TARGET_MAP_RULED is CONDITIONAL on this number,
+# and EXIT_CRITERIA criterion 13 will not let the phase start
+# without it. DESCRIPTIVE, no ledger row, no lock touched.
+#
+# WHY IT MUST RUN FIRST. Hard targets assign every exact tie a
+# definite WRONG order: `m_i > m_j` is FALSE for a tie, so a tie
+# silently receives P = 0 rather than the 0.5 the panel
+# supports -- and no check would raise it. The record held
+# 24.85% of pairs below SE_diff across 17 distinct separations
+# and never separated out the ties inside that set.
+#
+# THE COMPARISON RULE IS DECLARED, NOT LEFT TO `==`:
+# phase22.TIE_COMPARISON_RULE_DECLARED. Two patients tie iff
+# their INTEGER RATER SUMS are equal. soft_k * 5 is an exact
+# count, so each patient's five grades sum to an integer in
+# [5, 25]. NO FLOAT COMPARISON AND NO TOLERANCE appear in the
+# tie test. The recovery is phase8c.rater_multiset, which
+# ALREADY SHIPS -- reused, not reimplemented -- and which
+# CONFIRMS THE RATER COUNT FROM THE DATA by refusing a manifest
+# that is not five raters, rather than rendering invented ones.
+#
+# The float route would almost certainly agree: the smallest
+# possible non-zero separation is one rater-step, 0.2, about
+# 2e14 times any plausible float error. The integer route is
+# taken because it REMOVES the question rather than bounding
+# it, and costs nothing. Alternatives considered and recorded:
+# exact equality on the stored floats (correct today by an
+# accident of CSV formatting) and a declared tolerance
+# (softlabels.TOLERANCE = 1e-6 is the precedent; not taken
+# because it adds a constant where none is needed).
+#
+# THE READING FIRES MECHANICALLY at the REGISTERED boundary
+# 0.12425 -- half of the 24.85% below-SE_diff set that the
+# R-all/R-clear contrast is defined on. The reference quantity
+# is DERIVED; the half taken of it is a STATED JUDGEMENT, not a
+# derivation, and the record says so. Below -> hard targets are
+# specifiable with a declared tie rule and the ruling stands as
+# issued. At or above -> the tie rule materially shapes what
+# R-all learns, the ruling REOPENS for the maintainer with the number
+# in hand, and the tie rule becomes an eleventh setting.
+# Neither cell may be stretched.
+#
+# TWO CROSS-CHECKS AGAINST THE SEPARATION RUN, both fatal:
+# expect_pairs 27966 and expect_below_se_diff 0.2485. If either
+# disagrees the task STOPS and reports -- two measurements of
+# the same cohort that differ on its pair count are not both
+# right, and proceeding would bank a tie fraction whose
+# denominator nobody trusts.
+#
+# Every input is CARRIED VERBATIM from
+# configs/p21_cohort_pair_separation.yaml. NO NEW HASH ENTERS,
+# no GPU, no new artifact, NO GATE, and nothing pending.
+# Aggregates only: no patient id reaches any output.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p22_tie_fraction.yaml"
+
+schema_version: 1
+phase: p22
+tier: keeper
+seed: 1337
+inputs:
+- name: manifest_v1
+  path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+  rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+task:
+  kind: tie_fraction
+  manifest_artifact: manifest_v1
+  label: mean
+  boundary: 0.12425
+  report_smallest: 6
+  expect_pairs: 27966
+  expect_below_se_diff: 0.2485
+  expect_patients: 237

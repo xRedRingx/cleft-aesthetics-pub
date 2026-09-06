@@ -1,0 +1,62 @@
+# PHASE 6 ENTRY GATE, RUN B — the one that gets PAUSED.
+#
+# IDENTICAL to configs/p5_synthesis_gate_a.yaml except for out_version, and a
+# test asserts exactly that. See gate_a for the full reasoning; the short version:
+#
+#   * the gate runs at 200 faces (~3 min) rather than as two 90-minute builds,
+#     and it runs BEFORE the artifact build — a long job on a preemptible queue
+#     may be paused whether or not anyone plans it, so checkpointing should be
+#     proven before that rather than discovered during it;
+#   * checkpoint_every is 50 so 200 faces produce FOUR checkpoints, and a pause
+#     between any two of them exercises the journal truncation the same way the
+#     real build would. At 250 there would be one, and the part of the resume
+#     that can actually be wrong would barely be touched;
+#   * the pass condition is BYTE-IDENTITY against synth_gate_a, not completion.
+#
+# ----------------------------------------------------------------------------
+# HOW TO RUN THIS ONE
+# ----------------------------------------------------------------------------
+#   export CLEFT_SCUT_ROOT=/home/user/codex/scut/SCUT-FBP5500_v2
+#   python -m cleft.run --config configs/p5_synthesis_gate_b.yaml
+#
+# PAUSE THE WORKLOAD FROM THE RUN:AI CONSOLE mid-build — after at least one
+# `checkpoint at face N` line in the log, and before the build publishes. Then
+# resume. The log must show `RESUMING at face N of 200`; if it does not, the
+# pause landed before the first checkpoint or the working directory did not
+# survive, and the run proves nothing — redo it with a later pause.
+#
+# Then compare:
+#
+#   python -c "from cleft.provenance import hash_dir; \
+#     print(hash_dir('data/scut/synth_gate_a')['rollup']); \
+#     print(hash_dir('data/scut/synth_gate_b')['rollup'])"
+#
+# Record the outcome in docs/VERIFY_checkpoint.md, including what it does NOT
+# verify — that is the part of VERIFY_resume.md that made it useful.
+
+schema_version: 1
+phase: p5
+tier: dev
+seed: 1337
+
+inputs:
+  - name: scut_root
+    path: ${CLEFT_SCUT_ROOT}
+    rollup_sha256: 1041ceed0ef458e97c8be845eda30cf7957067fa730a4975a0f83bd8ed4947ec
+
+task:
+  kind: asymmetry_synthesis
+
+  scut_root: scut_root
+  geometries: ["g1", "g2"]
+
+  n_faces: 200
+  n_sheet: 3
+
+  magnitudes: [0.0, 0.015, 0.025, 0.035]
+  ar_sampling: observed
+
+  checkpoint_every: 50
+
+  write_artifact: true
+  out_version: synth_gate_b

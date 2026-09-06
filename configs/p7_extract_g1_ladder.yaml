@@ -1,0 +1,177 @@
+# PHASE 7 — THE NINE EXTRACTIONS STAGE D1 NEEDS.
+#
+# ----------------------------------------------------------------------------
+# WHY NINE AND NOT TWELVE
+# ----------------------------------------------------------------------------
+# Stage D1 is the init ladder AT G1 — twelve cells, but only nine runs. Three
+# of the twelve have identities that already exist and are already extracted:
+#
+#   vit_b16 scut_original g1   Stage C0's arm, in embeddings_g1_control_v1
+#   vit_b16 scut_masked  g1    Stage C's arm, in embeddings_v1
+#   swin_b  scut_masked  g1    Stage C's arm, in embeddings_v1
+#
+# The set list below is DERIVED — `cleft.ladder.g1_ladder_sets()`, which walks
+# the DISTINCT runs, so the reuse is resolved before the list is built rather
+# than by hand afterwards. A test asserts this file equals that derivation, so
+# an arm-list change lands as a failing test and never as a missing set.
+#
+# ----------------------------------------------------------------------------
+# A THIRD VERSION, AND THE REASON IS A GUARD RATHER THAN TASTE
+# ----------------------------------------------------------------------------
+# `embeddings_g1_control_v1` already exists: it was built on 2026-08-01 with
+# exactly one set, Stage C0 consumed it, and its rollup is verified in
+# `ladder.DECLARED_EMBEDDING_HASHES`. `run.task_extract_embeddings` REFUSES an
+# out_version whose directory exists (PLAN §2.6, immutability), so extracting
+# into it would abort before the first set was written. Hence a third version
+# holding the nine, and `ladder.embeddings_version_for` derives which version
+# any set lives in instead of that rule being restated per arm.
+#
+# ----------------------------------------------------------------------------
+# WHAT D1 IS FOR
+# ----------------------------------------------------------------------------
+# Not a repair of Stage D. Its G2 numbers are valid AS G2 measurements. But
+# the geometry penalty is NOT a constant offset — 0.1173 at ImageNet against
+# 0.0546 at scut_original, interaction +0.0627 against a 0.0437 threshold
+# (`ladder.CLEAN_GEOMETRY_MEASUREMENTS`) — so a G2 answer does not GENERALISE
+# to G1, and Q1 already differs by geometry (null at G2, claimably negative at
+# G1). Running both geometries turns that interaction into a result instead of
+# a caveat.
+#
+# `per_fold_bn_reestimation` is OFF, matching `p6_extract_embeddings.yaml`
+# exactly. That is what makes D1 comparable with Stage D: the per-fold AdaBN
+# variant is a DIFFERENT representation (`extract.PER_FOLD_REEXTRACTION`), and
+# turning it on for one geometry only would vary two factors at once — the
+# thing this ladder exists to avoid.
+#
+# ----------------------------------------------------------------------------
+# THE FIVE CHECKPOINTS, AND WHY TWO ARE DECLARED HERE FIRST
+# ----------------------------------------------------------------------------
+# Three are copied from `p6_extract_embeddings.yaml`, where they were VERIFIED
+# on the cluster on 2026-08-01 — the same path, so necessarily the same hash
+# (the cross-config invariant in tests/test_smoke_run.py).
+#
+# `ckpt_srgnn_native_masked_g1` and `ckpt_agnet_native_masked_g1` are the two
+# the extraction plan never needed: the ladder ran at G2, so only the two
+# TRANSFORMER masked_g1 checkpoints were ever consumed. Their runs existed —
+# `p6_pretrain_srgnn_native_masked_g1.yaml` and its AG-Net sibling produced
+# them among the thirty — but until 2026-08-02 no config had declared their
+# directories, and a run directory carries a job id no laptop can derive.
+#
+# **[VERIFIED 2026-08-02] Both are now declared**, resolved on the cluster and
+# read from each run's own metrics.json. This file is where they land, and
+# the reason is step 2 below.
+#
+# ----------------------------------------------------------------------------
+# THE ORDER, BECAUSE IT IS NOT THE OBVIOUS ONE
+# ----------------------------------------------------------------------------
+# 1. DONE. Resolve the two globs on the cluster and paste each real path and
+#    hash INTO THIS FILE. Not into the two Stage D1 graph arm configs: those
+#    are GENERATED, and a hand edit is caught by `--check`.
+#
+# 2. DONE. Regenerate — `scripts/generate_ladder_configs.py`. It resolves
+#    ckpt_* inputs BY NAME from any config that already declares them, so
+#    p7_d1_srgnn_scut_masked_g1_native and its AG-Net sibling picked up both
+#    checkpoints from here without ever being edited. That is the whole reason
+#    to paste them into an extraction config rather than an arm.
+#
+# 3. Run this extraction. Nothing here is a placeholder any more, so guard 3
+#    has five real checkpoint hashes to re-verify before it starts.
+#
+# 4. `scripts/declare_ladder_inputs.py`, paste the nine new rollups into
+#    `ladder.DECLARED_EMBEDDING_HASHES`, regenerate again. Until then guard 3
+#    refuses all nine Stage D1 arms, which is the placeholder working.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p7_extract_g1_ladder.yaml"
+
+schema_version: 1
+phase: p7
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+  # ---- verified 2026-08-01, read from p6_extract_embeddings.yaml -----------
+  - name: ckpt_agnet_native_original
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_agnet_native_original__5e927402__p6-pt-agnet-native-original-v2/pretrained.npz
+    rollup_sha256: 4375c06d79126d850c15f6dc40941c07398fa66509c261550f8477d1cab0ee77
+
+  - name: ckpt_srgnn_native_original
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_srgnn_native_original__5e927402__p6-pt-srgnn-native-original-v2/pretrained.npz
+    rollup_sha256: 33adb57e7f09e6a7939dbded28d9bb2eff88a060c8bbca6d5f0b5fff23be6c05
+
+  - name: ckpt_swin_b_original
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_swin_b_original__5e927402__p6-pt-swin-original-v2/pretrained.npz
+    rollup_sha256: d0b820b5553fba614fdc6f3b34c10a5df4678d5d80c62d5ff6ab7785cbc59c03
+
+  # ---- verified 2026-08-02, first declaration; see the header --------------
+  - name: ckpt_agnet_native_masked_g1
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_agnet_native_masked_g1__5e927402__p6-pt-agnet-native-g1-v2/pretrained.npz
+    rollup_sha256: bf0319ab7556cb71342623de1fd35d7c84178458f639450565f4c2bd4eba55fa
+
+  - name: ckpt_srgnn_native_masked_g1
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_srgnn_native_masked_g1__5e927402__p6-pt-srgnn-native-g1-v2/pretrained.npz
+    rollup_sha256: bb2113ae351bbd674aa14544c7cefc2d4ac2b42235364c3ff41767f7944b3866
+
+task:
+  kind: extract_embeddings
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+
+  out_version: embeddings_g1_ladder_v1
+  batch_size: 32
+
+  # OFF, exactly as p6_extract_embeddings.yaml. See the header: the per-fold
+  # variant is a different representation, and enabling it here alone would
+  # make Stage D1 differ from Stage D in two factors.
+  per_fold_bn_reestimation: false
+
+  # The DERIVED sets — cleft.ladder.g1_ladder_sets(), verbatim.
+  sets:
+    - backbone: agnet
+      init: imagenet
+      geometry: g1
+
+    - backbone: agnet
+      init: scut_masked
+      geometry: g1
+      pretrain_scheme: native
+
+    - backbone: agnet
+      init: scut_original
+      geometry: g1
+      pretrain_scheme: native
+
+    - backbone: srgnn
+      init: imagenet
+      geometry: g1
+
+    - backbone: srgnn
+      init: scut_masked
+      geometry: g1
+      pretrain_scheme: native
+
+    - backbone: srgnn
+      init: scut_original
+      geometry: g1
+      pretrain_scheme: native
+
+    - backbone: swin_b
+      init: imagenet
+      geometry: g1
+
+    - backbone: swin_b
+      init: scut_original
+      geometry: g1
+
+    - backbone: vit_b16
+      init: imagenet
+      geometry: g1

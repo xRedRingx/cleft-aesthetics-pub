@@ -1,0 +1,107 @@
+# PHASE 4 §3.1 -- the mirror-difference symmetry index.
+#
+# The landmark-free geometric baseline, and the one that certainly works: mirror
+# the staged image about the midline, subtract, quantify the residual. No
+# landmarks, no segmentation, no detector -- which matters, because no landmark
+# detector is available and the supervision material rejected the one from
+# its own group.
+#
+# ----------------------------------------------------------------------------
+# WHAT THIS ARM IS FOR
+# ----------------------------------------------------------------------------
+# Asymmetry is the clinical construct, this measures it directly, and it is the
+# cheapest possible instrument. If a frozen ViT embedding cannot beat a mirror
+# difference, that is a substantial finding about what the embedding captures.
+# It is a baseline worth LOSING to, not a formality.
+#
+# 22 features, all defined from geometry: the whole mask, each of the three
+# patch bands, and each of the 18 named anatomical structures (9 midline + 9
+# mirrored pairs collapsed to one, because the residual map is itself
+# mirror-symmetric and both members of a pair measure the same number).
+#
+# ----------------------------------------------------------------------------
+# GEOMETRY: G2, and this one IS a decision
+# ----------------------------------------------------------------------------
+# Unlike the Phase 3 probe's G1, this is not a neutral default. At G1 the
+# trapezium corners are white AND symmetric, so they contribute exactly zero
+# difference while still counting in the mean -- the index would be diluted by
+# an amount that varies with each patient's aspect ratio. Region coordinates are
+# normalised to the trapezium bounding box, which is the full square only at G2.
+#
+# geometry.mirror.require_g2 refuses G1 rather than warning about it.
+#
+# ----------------------------------------------------------------------------
+# SEEDS -- and what this arm's band measures
+# ----------------------------------------------------------------------------
+# Five seeds, per PLAN §4.12.1: every arm measures and reports its OWN SD rather
+# than inheriting the 0.0137 measured for the frozen probe.
+#
+# Expect a NON-ZERO but small band here, for a reason worth stating. The ridge
+# is closed-form, so it has no head initialisation and no early stopping to
+# vary. But harness.inner_val_split seeds off `seed`, so the seed decides which
+# patients are held out of training, and the fit moves with it. This arm's SD
+# therefore measures SPLIT sensitivity, not initialisation sensitivity. Both are
+# "seed variance"; they are not the same quantity, and a delta against the probe
+# has to carry the uncertainty of both arms.
+#
+# ----------------------------------------------------------------------------
+# DO NOT TUNE (Phase 4 §6)
+# ----------------------------------------------------------------------------
+# The features are defined from the geometry and measured once. Mean absolute
+# difference is the only statistic taken. `alpha` is fixed at 1.0 and is not
+# selected against anything -- it could legitimately be chosen on the inner-val
+# split, but every knob turned is a degree of freedom the comparison carries,
+# and if this arm needs tuning to beat the probe then it did not beat the probe.
+#
+# ----------------------------------------------------------------------------
+# Hashes: these are carried over from configs/p3_train_cv.yaml, which declares
+# the SAME two artifacts. Re-run scripts/declare_inputs.py on the cluster before
+# the first keeper run and confirm rather than assuming -- a wrong hash has
+# propagated into a second config once already, which is exactly this move.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p4_mirror_cv.yaml"
+
+schema_version: 1
+phase: p4
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+task:
+  kind: train_cv
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+
+  # No backbone at all: the features come from geometry and the regressor only
+  # maps them to a grade. `trainable: head` is recorded for consistency of the
+  # policy field -- the ridge IS the whole model, 23 parameters, and
+  # metrics.json reports that rather than a fraction of something it does not
+  # have.
+  backbone: ridge
+  trainable: head
+  alpha: 1.0
+
+  geometry: g2
+  # PRIMARY target per §4.2.
+  label: mean
+
+  # Closed form, so a second epoch changes nothing and epoch 1 is selected every
+  # time. The budget only bounds it. This is honest for this solver rather than
+  # a failure of the epoch policy -- gate 4 is frozen unstressed for the same
+  # reason and Phase 7's arms are what will stress it.
+  max_epochs: 5
+  patience: 2
+  inner_val_frac: 0.2
+  monitor: inner_val_mse
+
+  seeds: [1337, 2024, 7, 99, 12345]

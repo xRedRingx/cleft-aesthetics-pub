@@ -1,0 +1,110 @@
+# PHASE 4 — SENSITIVITY OF THE ESTIMATE TO HOW THE DATA IS PARTITIONED.
+#
+# The last outstanding Phase 4 item. It closes the phase.
+#
+# ----------------------------------------------------------------------------
+# WHAT THIS IS NOT: FOLD-ASSIGNMENT VARIANCE
+# ----------------------------------------------------------------------------
+# The obvious design -- regenerate folds at five fold-seeds and report the spread
+# -- DOES NOT WORK, and would fail silently. `data.folds.generate` runs the
+# splitter with `shuffle=False`, and its own docstring says the seed is recorded
+# but DOES NOT AFFECT THE PARTITION: the assignment is a deterministic function
+# of (groups, labels, n_folds).
+#
+# So five seeds return ONE FOLD SET FIVE TIMES and a spread of exactly zero --
+# which reads as "fold assignment does not matter" while actually meaning
+# NOTHING WAS VARIED. That is the worst kind of result: a clean number that
+# answers no question.
+#
+# ----------------------------------------------------------------------------
+# WHAT IT IS INSTEAD: VARY THE FOLD COUNT
+# ----------------------------------------------------------------------------
+# 5-fold, 6-fold, 10-fold, all with `shuffle=False` throughout. Genuinely
+# different partitions, deterministic stratification intact, no balance
+# degradation, and NOTHING TOUCHING THE FROZEN MODULE. `shuffle=False` was a
+# deliberate Phase 1 stratification fix and is not being re-litigated.
+#
+# PLUS LEAVE-ONE-PATIENT-OUT as the reference point: 237 folds, deterministic,
+# and NO ASSIGNMENT CHOICE AT ALL -- there is nothing to stratify when every test
+# fold is one patient. `lopo_minus_5fold` is then the most direct statement
+# available of how much the quoted 5-fold number depends on partitioning, from
+# one run. 237 fits over frozen embeddings is minutes.
+#
+# THE CONFOUND, STATED. Fold count also changes TRAINING-SET SIZE: 5-fold trains
+# on ~190 patients, 10-fold on ~213, leave-one-out on 236. So the spread mixes
+# HOW the data is partitioned with HOW MUCH of it each model sees, and the two
+# are not separable in this design. `training_sizes` is reported per
+# partitioning so it is visible which is moving.
+#
+# Report it as SENSITIVITY TO PARTITIONING. Not as fold-assignment variance.
+#
+# ----------------------------------------------------------------------------
+# THE GAP THIS IDENTIFIES AND DOES NOT CLOSE — FOR LIMITATIONS
+# ----------------------------------------------------------------------------
+# Three sources of variability bear on a claim, and the design sees two:
+#
+#   patient sampling      captured by the paired BCa CI over patients (§4.3)
+#   training procedure    captured empirically by the seed band (§4.12)
+#   FOLD ASSIGNMENT       captured by NEITHER
+#
+# And the design CANNOT see the third: cleft_v1's folds are fixed, every arm uses
+# them, and the generator is deterministic, so no arm ever varies fold assignment
+# while holding everything else constant. Nadeau-Bengio was removed from the
+# claim criterion partly because it addressed a test this design does not run --
+# and the gap it was masking is exactly this one.
+#
+# This run gives a BOUND on that gap, not a measurement of it. It belongs in
+# limitations as a stated gap in the claim criterion, not as a resolved question.
+#
+# ----------------------------------------------------------------------------
+# HOW TO READ IT
+# ----------------------------------------------------------------------------
+# COMPARE `range` AGAINST THE SEED BAND FIRST (PLAN §4.12: SD 0.0137, and the
+# claimable delta at five seeds is 0.017). A spread inside the band is not a
+# finding. A spread comparable to or larger than it is significant for every
+# result in the project, because every one is quoted from a single partitioning.
+#
+# ----------------------------------------------------------------------------
+# Hashes: run scripts/declare_inputs.py and paste. Do not copy from a chat log.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p4_partition.yaml"
+
+schema_version: 1
+phase: p4
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+task:
+  kind: partition_sensitivity
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+
+  # EXACTLY the arm the bar was measured with (p3_train_cv.yaml). If any of these
+  # differed, the spread would not be about partitioning.
+  backbone: vit_b16
+  trainable: head
+  geometry: g1
+  label: mean
+
+  fold_counts: [5, 6, 10]
+  include_lopo: true
+
+  max_epochs: 40
+  patience: 5
+  inner_val_frac: 0.2
+  monitor: inner_val_mse
+
+  learning_rate: 0.001
+  weight_decay: 0.01
+  batch_size: 32

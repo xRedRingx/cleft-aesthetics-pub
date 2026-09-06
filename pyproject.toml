@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cleft-aesthetics"
+version = "0.1.0"
+description = "Automated aesthetic assessment of cleft lip and palate repair"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy<2",
+    "PyYAML",
+    "scipy",
+    # The score sheet ships as .xlsx and there is no CSV form of it.
+    "openpyxl",
+    # Loading the crops and saving the contact sheet.
+    "Pillow",
+]
+
+[project.optional-dependencies]
+# The CI environment, installed with: pip install -e ".[test]"
+#
+# CPU only. torch is DELIBERATELY absent -- it is what keeps the suite under a
+# minute, and the loop being fast is what makes committing before every run cost
+# nothing. Torch-dependent tests belong on the cluster.
+#
+# Every version here is pinned and MUST match docker/requirements.txt for any
+# package that appears in both, so CI and the image cannot drift apart.
+# tests/test_workflow_hygiene.py::test_ci_and_image_agree_on_shared_versions
+# fails the build if they do.
+test = [
+    "numpy==1.26.4",
+    "scipy==1.13.1",
+    "scikit-learn==1.5.0",
+    "PyYAML==6.0.1",
+    "openpyxl==3.1.5",
+    # Reading the real JPEGs and writing the contact sheet. Rendering itself is
+    # pure numpy and testable without it; Pillow only loads and saves.
+    "Pillow==10.3.0",
+    "pytest==8.2.2",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# ``src`` so the package imports without an editable install; ``tests`` so the
+# synthetic fixture builders import as ``fixtures.builders``.
+pythonpath = ["src", "tests"]
+addopts = "-q --strict-markers --strict-config"
+filterwarnings = ["error"]

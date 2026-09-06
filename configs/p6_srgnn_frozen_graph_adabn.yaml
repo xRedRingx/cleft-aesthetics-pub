@@ -1,0 +1,184 @@
+# PHASE 6 — THE AdaBN PROBE. THE LAST LIVE ALTERNATIVE. NOT A LADDER ARM.
+#
+# ----------------------------------------------------------------------------
+# WHERE THIS SITS
+# ----------------------------------------------------------------------------
+# The seed band gave the third regime pooled OOF PCC 0.1507 (sd 0.0251, ten
+# seeds) against the frozen ViT linear probe's 0.2529, with an
+# over-parameterisation signature matching the ViT full fine-tune that scored
+# -0.013. Two readings fitted that evidence identically.
+#
+# The frozen-graph diagnostic (p6_srgnn_frozen_graph) then scored **0.1340
+# with 2,049 trainable parameters**, and that KILLED the configuration
+# reading: over-parameterisation cannot be the cause when the arm has no
+# capacity to overfit with. It also reframed the trained arm — 0.1507 at
+# 11.7M against 0.1340 at 2,049 means training the graph layers HELPS by
+# ~0.017, inside the 0.031 five-seed threshold so not claimable, but the
+# direction is opposite to overfitting.
+#
+# **That did not establish the architecture reading, and the diagnostic said
+# so in advance.** Its `outcome_low` named exactly one surviving alternative:
+# the probe runs on the checkpoint's SCUT BatchNorm running statistics against
+# cleft inputs. This arm removes it.
+#
+# ----------------------------------------------------------------------------
+# WHAT THIS ARM IS
+# ----------------------------------------------------------------------------
+# p6_srgnn_frozen_graph with ONE field changed. Per fold, before the
+# classifier is fitted:
+#
+#   1. reset each BatchNorm's running statistics;
+#   2. put the BatchNorm modules ALONE into train mode, momentum: None;
+#   3. forward the fold's TRAIN rows under no_grad to accumulate;
+#   4. return to eval, and fit the 2,049-parameter classifier exactly as
+#      before.
+#
+# AdaBN is the documented remedy for this on these backbones (PLAN §4.7,
+# [MEASURED + LITERATURE]) — and it is the same mechanism that was the root
+# cause of the void ladder's "head-init defect". This is a failure mode with a
+# record in this project, not a speculative one.
+#
+# ----------------------------------------------------------------------------
+# THREE WAYS THIS COULD HAVE BEEN A NO-OP REPORTING SUCCESS
+# ----------------------------------------------------------------------------
+# All three measured on torch 2.13.0 before the code was written
+# (graph_cleft.MECHANISM_VERIFIED), because each leaves every field looking
+# right:
+#
+#   * **not resetting first.** momentum: None is a CUMULATIVE average weighted
+#     1/num_batches_tracked, and a pretrained checkpoint arrives with that
+#     counter in the thousands. Measured: from n=3000 and a running mean of
+#     -99.0, four batches of target data reach -98.86 — 0.14% of the way. The
+#     run would complete and the statistics would still be SCUT's.
+#   * **calling model.train().** SR-GNN applies Dropout(0.2) twice, so the
+#     statistics would describe activations eval-mode inference never sees.
+#     Only the BN modules switch.
+#   * **adapting on the wrong rows.** The harness calls predict() on the
+#     INNER-VAL rows (gate 3) and the test rows before train_epoch is ever
+#     reached, so adapting at the first forward of any kind would compute the
+#     representation from the data early stopping is judged on. Adaptation is
+#     bound to train_epoch, which receives inner-train only.
+#
+# The accumulation pass is UNSHUFFLED and runs under no_grad, so the adapted
+# representation is a deterministic function of the fold and does not depend
+# on the seed at all.
+#
+# ----------------------------------------------------------------------------
+# READ THE OUTCOMES — STATED BEFORE THE RUN
+# ----------------------------------------------------------------------------
+#   ~0.25   CONCLUSIVE. The gap was normalisation-statistics mismatch, the
+#           architecture reading DIES, and SR-GNN's representation is fine.
+#           This direction is unaffected by the scope limit below: if
+#           re-normalising the last two layers alone recovers the gap, the
+#           representation was never the problem.
+#
+#   ~0.134  The normalisation alternative is NARROWED, **not removed**, and
+#           the architecture reading is NOT established. See the scope limit.
+#
+# Either answer is a real finding. **This is not a search**: if it lands low,
+# the answer is not a hunt for a fourth thing to adjust.
+#
+# ----------------------------------------------------------------------------
+# THE SCOPE LIMIT — WHAT THIS ARM CANNOT REACH
+# ----------------------------------------------------------------------------
+# **[MEASURED 2026-08-01] This arm re-estimates 2 of SR-GNN's 42 BatchNorms.**
+# bn1 and bn2 are the last two layers before the classifier. The other 40 are
+# Xception's, and the reason they are excluded is correct while its
+# consequence was nearly missed: they do not run on the CLEFT path, because
+# the feature map arrives precomputed.
+#
+# **They ran during EXTRACTION.** train/extract.py loads the pretraining
+# checkpoint's full state dict — running statistics included — calls
+# model.eval(), and runs model.backbone(batch) over the cleft images. In eval
+# mode those 40 BatchNorms normalise with SCUT running statistics, and their
+# output IS the feature_map artifact this arm consumes. So the mismatch is
+# baked in forty layers deep and no cleft-time policy can reach it.
+#
+# **The confound is one-directional against the comparator.** ViT-B/16 is
+# LayerNorm — no running statistics, normalised per sample — so nothing
+# equivalent happened on the 0.2529 side. The asymmetry runs against SR-GNN in
+# exactly the direction that makes it look weaker.
+#
+# **What would close it: a RE-EXTRACTION, not another cleft arm.** The backbone
+# would have to run over the cleft images with its own BN statistics
+# re-estimated on them, producing a new embedding set with its own hash. That
+# is a Phase 6 extraction change, deliberately not built here — building it to
+# rescue a conclusion would be fitting the instrument to the answer.
+#
+# An earlier revision of this config said a ~0.134 result would ESTABLISH the
+# architecture reading. That was wrong, in this project's most familiar way:
+# a measurement read as answering a question one size larger than the one it
+# asks. Corrected before the run, which is the only useful time.
+#
+# ----------------------------------------------------------------------------
+# THE ONE-SEED CAVEAT, WHICH BINDS BOTH ARMS
+# ----------------------------------------------------------------------------
+# One seed, against a regime whose measured SD is 0.025 — so 0.1340 could sit
+# anywhere in roughly 0.11–0.16, and so can whatever this arm returns. That
+# does not change the conclusion, because even the top of that range falls
+# well short of 0.25 and the two hypotheses are ~0.12 apart. It does mean
+# **neither number is quotable as a value**, and no delta between these two
+# arms is claimable.
+#
+# ----------------------------------------------------------------------------
+# INPUTS ARE THE FROZEN PROBE'S, UNCHANGED [VERIFIED 2026-08-01]
+# ----------------------------------------------------------------------------
+# Same artifacts, same verified hashes as p6_srgnn_frozen_graph.yaml and
+# p6_srgnn_seed_band.yaml. Guard 3 recomputes both at launch either way.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p6_srgnn_frozen_graph_adabn.yaml"
+
+schema_version: 1
+phase: p6
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+  - name: embeddings_srgnn_native
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_v1/srgnn__scut_masked__g2__native
+    rollup_sha256: 53f08076322d5d012790e58fa52e62033863e97f8e969d84afa059007d1cb968
+
+  - name: ckpt_srgnn_native_masked_g2
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_srgnn_native_masked_g2__5e927402__p6-pt-srgnn-native-g2-v2/pretrained.npz
+    rollup_sha256: c02441760520898e6737ecb18bb1f5aa9e9b9717e23dd5e81bcf614c02e24002
+
+task:
+  kind: train_graph_cv
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+  embeddings_artifact: embeddings_srgnn_native
+  checkpoint: ckpt_srgnn_native_masked_g2
+
+  backbone: srgnn
+  init: scut_masked
+  geometry: g2
+  region_scheme: native
+  label: mean
+
+  # THE ONLY FIELD THAT DIFFERS FROM p6_srgnn_frozen_graph.yaml.
+  # Same frozen stack, same 2,049-parameter classifier, with the BatchNorm
+  # running statistics re-estimated on each training fold first.
+  trainable: classifier_adabn
+
+  seeds: [1337]
+
+  max_epochs: 40
+  patience: 5
+  inner_val_frac: 0.2
+
+  monitor: inner_val_mse
+
+  # The probe rate, matched to the arm this is paired with.
+  learning_rate: 0.001
+  weight_decay: 0.01
+  batch_size: 16

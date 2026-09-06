@@ -1,0 +1,72 @@
+cff-version: 1.2.0
+message: >-
+  If you refer to this work, please cite the repository. It is the audit
+  trail for a dissertation, and its findings are negative: they are
+  citable as measurements of what these methods achieved on this cohort
+  at this label quality, and not as a method anyone should adopt.
+
+title: >-
+  cleft-aesthetics: automated aesthetic assessment of surgical outcome in
+  cleft lip and palate repair, and a record of what could and could not
+  be shown on a 237-patient cohort
+
+# ---------------------------------------------------------------------------
+# THE ONE FILE WHERE THE ANONYMISATION DOES NOT APPLY.
+#
+# No person is named anywhere else in the tracked set and a standing
+# guard in the suite enforces that. A citation exists to name its author,
+# so the guard PERMITS THIS FILE SPECIFICALLY rather than being widened:
+# see CITATION_EXEMPT in tests/test_phase9.py, which also extends the
+# sweep to the repository root and to .cff so that this permission is a
+# decision rather than a gap.
+# ---------------------------------------------------------------------------
+authors:
+  - given-names: El Mahdi
+    family-names: Liamani
+    # orcid: "https://orcid.org/0000-0000-0000-0000"
+
+# The public snapshot's own URL. Each snapshot is one commit copying the
+# tracked file state of a private development repository, so this is the
+# artifact a reader can reach, not the history that produced it.
+repository-code: "https://github.com/xRedRingx/cleft-aesthetics-pub"
+
+abstract: >-
+  A research codebase and its audit trail. The task is predicting a
+  five-rater panel's aesthetic grade of surgical outcome from a clinical
+  photograph, on a cohort of 237 patients. The headline result is
+  negative and measured rather than assumed: the best arm reaches a
+  Pearson correlation of 0.2520 against a panel mean whose own
+  reliability caps any predictor in the range [0.8983, 0.9065], and no
+  alternative feature source, training objective or label construction
+  beat that baseline by an amount the cohort can resolve. The repository
+  carries the pre-registrations, rulings and readings that were written
+  before each result existed, an append-only claim ledger in which five
+  of thirty-nine recorded comparisons are claimable, and the corrections
+  the project made to its own figures, dated in place with the originals
+  preserved. No patient data is present and none can be.
+
+keywords:
+  - cleft lip and palate
+  - aesthetic outcome assessment
+  - clinical machine learning
+  - inter-rater reliability
+  - negative results
+  - reproducibility
+  - pre-registration
+
+type: software
+
+license: Apache-2.0
+
+# The licence covers this repository's own work. ONE FILE IS PUBLISHED ON
+# A DIFFERENT BASIS: src/cleft/models/srgnn.py is a port of an upstream
+# implementation that carries no LICENSE file, so nothing was inherited
+# from it, and it appears here by permission held directly from the
+# supervisor, who is an author on that paper, and from the owner of the
+# upstream repository, who is its corresponding author. That permission
+# grants nothing onward. The NOTICE file states this at the top level and
+# cleft.models.srgnn.PUBLICATION_AUTHORISED is the dated record.
+#
+# CFF takes a single SPDX identifier, so the exception cannot live in
+# this field. Naming Apache-2.0 here and the exception in NOTICE is the
+# closest honest fit the format allows.

@@ -1,0 +1,183 @@
+# PHASE 6 §4 — EMBEDDING EXTRACTION: THE REQUIRED SETS, DERIVED.
+#
+# The sets below are DERIVED from the arm list (src/cleft/embedding_plan.py),
+# not cross-producted: the scheme axis would have taken the naive product to
+# ~48 sets, and the arms need 17. A test asserts this list equals the
+# derivation exactly, so an arm-list change shows up as a failing test, never
+# as a silently missing set. Stage C is a MECHANISM TEST on both transformers
+# [DECIDED 2026-08-01]: the tiling prior predicts ViT separates at G1 and
+# Swin does not -- stated before the cleft runs.
+#
+# WHAT ONE SET IS: transformers -> the pooled pre-logits vector (n, d);
+# graph backbones -> the frozen backbone's FEATURE MAP (n, 2048, 7, 7)
+# [DECIDED 2026-07-31 -- see embeddings.py: per_region could not feed either
+# verified stack]. Region schemes are applied at CLEFT-train time; graph sets
+# record which scheme's CHECKPOINT their map came from (pretrain_scheme), and
+# the cleft arm must train under the same scheme.
+#
+# ROW ORDER is asserted per set against an independent manifest read.
+#
+# ----------------------------------------------------------------------------
+# THE THIRTEEN CHECKPOINT INPUTS [VERIFIED ON THE CLUSTER, 2026-08-01]
+# ----------------------------------------------------------------------------
+# All at SHA 5e927402, all resolved unambiguously. Run directories follow the
+# provenance contract's shape `<config-stem>__<sha8>__<job-id>` (PLAN §2.4).
+# Each hash is that run's own metrics.json `pretrained_checkpoint.sha256`,
+# recorded at write time; guard 3 re-verifies every file before the run
+# starts. All thirteen runs passed their band checks (originals consumable;
+# masked reviewed against their own backbone's same-scheme originals).
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p6_extract_embeddings.yaml"
+
+schema_version: 1
+phase: p6
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+  - name: ckpt_agnet_native_masked_g2
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_agnet_native_masked_g2__5e927402__p6-pt-agnet-native-g2-v2/pretrained.npz
+    rollup_sha256: c74ca3fc290ca6575e3baa508036387f03733aa33ea2f1dd2352437eaab01470
+
+  - name: ckpt_agnet_native_original
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_agnet_native_original__5e927402__p6-pt-agnet-native-original-v2/pretrained.npz
+    rollup_sha256: 4375c06d79126d850c15f6dc40941c07398fa66509c261550f8477d1cab0ee77
+
+  - name: ckpt_srgnn_anatomy_masked_g2
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_srgnn_anatomy_masked_g2__5e927402__p6-pt-srgnn-anatomy-g2-v2/pretrained.npz
+    rollup_sha256: ebcdc24574941493c74ba3a60629979d018c6b66911355317894f5cc67848969
+
+  - name: ckpt_srgnn_grid_masked_g2
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_srgnn_grid_masked_g2__5e927402__p6-pt-srgnn-grid-g2-v2/pretrained.npz
+    rollup_sha256: 2e816cf2cef96dd315a78b1b0af896607fb596d03248409382bfe74f7cb1a913
+
+  - name: ckpt_srgnn_native_masked_g2
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_srgnn_native_masked_g2__5e927402__p6-pt-srgnn-native-g2-v2/pretrained.npz
+    rollup_sha256: c02441760520898e6737ecb18bb1f5aa9e9b9717e23dd5e81bcf614c02e24002
+
+  - name: ckpt_srgnn_native_original
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_srgnn_native_original__5e927402__p6-pt-srgnn-native-original-v2/pretrained.npz
+    rollup_sha256: 33adb57e7f09e6a7939dbded28d9bb2eff88a060c8bbca6d5f0b5fff23be6c05
+
+  - name: ckpt_srgnn_random_masked_g2
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_srgnn_random_masked_g2__5e927402__p6-pt-srgnn-random-g2-v2/pretrained.npz
+    rollup_sha256: 77c24bab99b9196821f65b49a38162473acbe62ccf925e8f82068c76e0815f53
+
+  - name: ckpt_swin_b_masked_g1
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_swin_b_masked_g1__5e927402__p6-pt-swin-g1-v2/pretrained.npz
+    rollup_sha256: 1e60a5abab6010a9490365c7300819e253f2945f44416e5f86e6bf05b05fa02a
+
+  - name: ckpt_swin_b_masked_g2
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_swin_b_masked_g2__5e927402__p6-pt-swin-g2-v2/pretrained.npz
+    rollup_sha256: e86196daaa52963f18e9ef4807cc333cf9db99c07ed23fe2b5ec89ec02d23e9f
+
+  - name: ckpt_swin_b_original
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_swin_b_original__5e927402__p6-pt-swin-original-v2/pretrained.npz
+    rollup_sha256: d0b820b5553fba614fdc6f3b34c10a5df4678d5d80c62d5ff6ab7785cbc59c03
+
+  - name: ckpt_vit_b16_masked_g1
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_vit_b16_masked_g1__5e927402__p6-pt-vit-g1-v2/pretrained.npz
+    rollup_sha256: 9b6d57dcdc3dd05099a4d6eae7908cf25211f718cc24abcdfbb37d627f3ce9cf
+
+  - name: ckpt_vit_b16_masked_g2
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_vit_b16_masked_g2__5e927402__p6-pt-vit-g2-v2/pretrained.npz
+    rollup_sha256: 1424d6d521796ecee6f4742d1dc692608875ccf4215532ca3cc39a272c2f396a
+
+  - name: ckpt_vit_b16_original
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_vit_b16_original__5e927402__p6-pt-vit-original-v2/pretrained.npz
+    rollup_sha256: 3ff967b230aaa0e609d5a8c421a1a9aa67edbfe2dedba6faabac9f9bfc57dc86
+
+task:
+  kind: extract_embeddings
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+
+  out_version: embeddings_v1
+  batch_size: 32
+
+  # The DERIVED sets — src/cleft/embedding_plan.required_sets(), verbatim.
+  sets:
+    - backbone: agnet
+      init: imagenet
+      geometry: g2
+
+    - backbone: agnet
+      init: scut_masked
+      geometry: g2
+      pretrain_scheme: native
+
+    - backbone: agnet
+      init: scut_original
+      geometry: g2
+      pretrain_scheme: native
+
+    - backbone: srgnn
+      init: imagenet
+      geometry: g2
+
+    - backbone: srgnn
+      init: scut_masked
+      geometry: g2
+      pretrain_scheme: anatomy
+
+    - backbone: srgnn
+      init: scut_masked
+      geometry: g2
+      pretrain_scheme: grid
+
+    - backbone: srgnn
+      init: scut_masked
+      geometry: g2
+      pretrain_scheme: native
+
+    - backbone: srgnn
+      init: scut_masked
+      geometry: g2
+      pretrain_scheme: random
+
+    - backbone: srgnn
+      init: scut_original
+      geometry: g2
+      pretrain_scheme: native
+
+    - backbone: swin_b
+      init: imagenet
+      geometry: g2
+
+    - backbone: swin_b
+      init: scut_masked
+      geometry: g1
+
+    - backbone: swin_b
+      init: scut_masked
+      geometry: g2
+
+    - backbone: swin_b
+      init: scut_original
+      geometry: g2
+
+    - backbone: vit_b16
+      init: imagenet
+      geometry: g2
+
+    - backbone: vit_b16
+      init: scut_masked
+      geometry: g1
+
+    - backbone: vit_b16
+      init: scut_masked
+      geometry: g2
+
+    - backbone: vit_b16
+      init: scut_original
+      geometry: g2

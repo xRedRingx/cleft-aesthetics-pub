@@ -1,0 +1,70 @@
+cleft-aesthetics
+Copyright 2026 the maintainer of this repository.
+
+This product includes software developed for a doctoral dissertation on
+automated aesthetic assessment of surgical outcome in cleft lip and
+palate repair. It is licensed under the Apache License, Version 2.0. See
+the LICENSE file.
+
+
+THIRD-PARTY ATTRIBUTION
+=======================
+
+src/cleft/models/srgnn.py
+-------------------------
+
+This file is a port of the SR-GNN reference implementation released at:
+
+    https://github.com/ArdhenduBehera/SR-GNN
+
+for the paper:
+
+    Bera, Wharton, Liu, Bessis & Behera, "SR-GNN: Spatial Relation-Aware
+    Graph Neural Network for Fine-Grained Image Categorization", IEEE
+    Transactions on Image Processing 31:6017-6031 (2022).
+    https://doi.org/10.1109/TIP.2022.3205215
+
+The port was verified by weight transplant against the released
+weights: 257 of 257 weight tensors map onto the port's parameters, and
+outputs match to better than 1e-6 at every internal stage, corroborated
+across three checkpoints.
+
+**That upstream repository carries no LICENSE file.** No licence was
+granted publicly, so nothing was inherited from it. This file is
+published here on the basis of PERMISSION GIVEN DIRECTLY, held from two
+sources: the supervisor of this work, who is an author on the paper, and
+the owner of the upstream repository, who is its corresponding author.
+The dated record of that authorisation is at
+``cleft.models.srgnn.PUBLICATION_AUTHORISED``.
+
+**That permission covers this repository's publication of this file and
+grants nothing onward.** A recipient of this repository does not thereby
+receive any right to the upstream work, and the Apache-2.0 grant over
+the rest of this repository does not extend to it. Anyone wishing to
+reuse the SR-GNN implementation should approach the upstream authors.
+
+
+src/cleft/models/agnet.py
+-------------------------
+
+NOT a port, and the distinction is deliberate. This file is a
+paper-faithful implementation written from:
+
+    Bera, Wharton, Liu, Bessis & Behera, "Attend and Guide (AG-Net): A
+    Keypoints-Driven Attention-Based Deep Network for Image
+    Recognition", IEEE Transactions on Image Processing 30:3691-3704
+    (2021).
+
+No authors' weights were released for AG-Net, so no weight transplant
+was possible and none is claimed. The one third-party reproduction that
+exists was examined and discredited, and was not used.
+
+
+src/cleft/models/cleftgnn.py
+----------------------------
+
+Built to a collaborating group's own artifacts under this project's
+Phase 10 registration, with authorisation held from the supervisor. The
+component-by-component provenance, including every conflict found
+between the group's manuscript and their notebook, is recorded at
+``cleft.phase10.PHASE_10_REGISTERED``.

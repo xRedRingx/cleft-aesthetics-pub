@@ -1,0 +1,110 @@
+# PHASE 4 §3.3 — PATCH-FED FROZEN PROBE: THE GRID SCHEME, AT G2.
+#
+# One of three arms that differ in ONE field: `patch_scheme`. Read this file for
+# the shared reasoning; p4_patch_anatomy.yaml and p4_patch_random.yaml carry the
+# same everything else.
+#
+# ----------------------------------------------------------------------------
+# WHAT THIS ARM IS
+# ----------------------------------------------------------------------------
+# Each of the 27 patches is cropped through the patient's OWN content box,
+# resized to 224, embedded with the SAME frozen ViT-B/16 the whole-image probe
+# uses, and the 27 embeddings are mean-pooled into one vector. A linear head then
+# maps that to a grade. Same backbone, same normalization, same harness, same
+# folds as the bar -- so a difference is about WHERE the model looks.
+#
+# ----------------------------------------------------------------------------
+# THE LIMIT THIS ARM CARRIES, AND IT IS NOT SMALL
+# ----------------------------------------------------------------------------
+# Mean pooling discards every relationship between regions -- and relationships
+# between regions are the entire hypothesis the patch scheme exists to test.
+# Pooling is exactly what SR-GNN replaces with message passing in Phase 7.
+#
+# So this is a LOWER BOUND on what patches can do, not a test of the patch
+# hypothesis. If it loses to the whole-image probe the finding is "mean-pooled
+# patch embeddings do not beat whole-image embeddings" and NOT "region structure
+# does not help". The brief calls §3.3 the first clean test of Q4; read that with
+# this limit attached, and do not let the write-up collapse the two.
+#
+# ----------------------------------------------------------------------------
+# GEOMETRY: G2, AND THIS ONE IS NOT NEUTRAL
+# ----------------------------------------------------------------------------
+# Unlike the Phase 3 gate config, the geometry here is load-bearing. [MEASURED,
+# PLAN §4.4] At G1 the three schemes carry completely different amounts of
+# background -- grid 10 of 27 patches up to 49.9% white, anatomy 4 of 27 with
+# lateral_orbit at 76.4%, random 0 of 27 -- so a scheme difference measured at G1
+# would be partly a background difference. At G2 the mask IS the full square and
+# all three see zero background. The comparison is only clean there.
+#
+# ----------------------------------------------------------------------------
+# DETERMINISM: RUN THIS CONFIG TWICE
+# ----------------------------------------------------------------------------
+# Patch extraction and pooling are NEW CODE between the images and the harness,
+# and pooling is exactly where a nondeterministic reduction hides -- a reordered
+# sum over 27 float32 embeddings moves the last digits and nothing downstream
+# notices. harness.py asked for this re-run itself; the arms simply arrived at
+# Phase 4 rather than Phase 7.
+#
+# metrics.json carries `fingerprint.predictions_sha256` per seed, so the check is
+# comparing strings rather than diffing two CLUSTER-ONLY CSVs by eye. Running
+# this five-seed config twice gives FIVE independent comparisons, which is
+# strictly better than the single one the brief asks for.
+#
+# `gate1_reproduction` will say checked: false with the reason -- GATE1_REFERENCE
+# is the whole-image arm and this one is expected to differ. Reproducing gate 1
+# itself is p3_train_cv.yaml's job, single-seeded.
+#
+# ----------------------------------------------------------------------------
+# SEEDS: FIVE, AND THE BAND IS THIS ARM'S OWN
+# ----------------------------------------------------------------------------
+# PLAN §4.12.1 -- no arm inherits another's band. Report this arm's measured SD,
+# and use phase3.combined_claimable_delta against the whole-image probe's
+# (0.0137, n=10) for the threshold. Do not compare against 0.0137 alone.
+#
+# Hashes: run scripts/declare_inputs.py and paste. Do not copy from a chat log.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p4_patch_grid.yaml"
+
+schema_version: 1
+phase: p4
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+task:
+  kind: train_cv
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+
+  # THE one field that differs across the three scheme arms.
+  patch_scheme: grid
+
+  # Mean, and "concat" is not an option -- 27x768 features for 237 patients is
+  # memorisation, not a probe. See geometry.patch_features.POOLINGS.
+  pooling: mean
+
+  geometry: g2
+  label: mean
+  backbone: vit_b16
+  trainable: head
+
+  max_epochs: 40
+  patience: 5
+  inner_val_frac: 0.2
+  monitor: inner_val_mse
+
+  learning_rate: 0.001
+  weight_decay: 0.01
+  batch_size: 32
+
+  seeds: [1337, 2024, 7, 99, 12345]

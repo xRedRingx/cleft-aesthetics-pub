@@ -1,0 +1,40 @@
+# PHASE 25 -- EXTRACT D1 (DINO-B/16, the same-encoder control)
+#
+# phase25.EXIT_CRITERIA (LOCKED 2026-09-02), phase25.THE_TWO_ARMS_RULED.
+# Same timm architecture as the probe (vit_base_patch16_224), different pretrained tag, native 224 -- so NO size kwargs and no interpolation. This is what makes it the control.
+#
+# **BLOCKING, AND IT IS NOT CLOSED BY THIS FILE**: the checkpoint tag below
+# resolved in timm 1.0.27 under Python 3.13 on the laptop. **The cluster is
+# pinned at timm 1.0.7 and nothing about 1.0.7's model index is verifiable
+# from here** (phase25.THE_CHECKPOINTS_RESOLVED). If the tag does not
+# resolve in the pinned image this config CANNOT run, and the fix is a
+# decision about the pin, not an edit here.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p25_extract_d1_dino.yaml"
+
+schema_version: 1
+phase: p25
+tier: keeper
+seed: 1337
+inputs:
+- name: manifest_v1
+  path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+  rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+- name: staged_v1
+  path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+  rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+task:
+  kind: extract_embeddings
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+  out_version: dino_g1_v1
+  batch_size: 32
+
+  # ONE set. The arm varies the BACKBONE and nothing else, so the
+  # extraction that feeds it varies the backbone and nothing else.
+  sets:
+    - backbone: vit_b16_dino
+      init: dino_in1k
+      geometry: g1

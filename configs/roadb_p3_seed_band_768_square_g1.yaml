@@ -1,0 +1,67 @@
+# ROAD B PHASE 3 — SEED BAND AT THE AXIS'S TOP EXTREME: 768 SQUARE G1
+#
+# Gate 2 re-measured where the procedure changed: a different input size is a
+# different training procedure, and Road A's SD 0.0137 does not transfer
+# (brief §4; roadb.SEED_BAND_DESIGN carries the full design and the
+# PRE-REGISTERED decision rule -- read it before reading the numbers).
+#
+# **Road A's own ten seeds, deliberately.** The same seed drives the same
+# inner-val split, so the split component of the band is matched pairwise
+# against the recorded gate-2 sweep and the per-seed deltas isolate the
+# embedding's contribution. The 224 counterpart runs a DISJOINT draw; between
+# them the F-based rule decides how many bands the road needs.
+#
+# **The ViT runs DYNAMIC here** -- 48x48 position grid interpolated from
+# 14x14 (factory.timm_kwargs_for, measured 2026-08-09 through the project's
+# own builder; the legacy path dies at "Input height (768) doesn't match
+# model (224)"). The extraction report records input_size and dynamic_input.
+#
+# **Ten seeds resolve a band to ~23%**, so the agreement test sees only ~2x
+# divergences; forty seeds see ~1.4x and cost minutes. Widening is this one
+# list.
+#
+# **batch_size serves TWO uses** -- extraction batching AND head-training
+# batches. If extraction OOMs at 768 on a fractional GPU, raise the fraction
+# rather than lowering this field: lowering it changes the head-training
+# procedure, and the pairing against Road A's sweep is the point.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/roadb_p3_seed_band_768_square_g1.yaml"
+
+schema_version: 1
+phase: roadb_p3
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: roadb_768_square_g1_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/roadb_768_square_g1_v1
+    rollup_sha256: b4cbd5150cb08f5ad6890687d6327c80cdc313027dd0478a38dc4a5d136822e8
+
+task:
+  kind: train_cv
+
+  manifest_artifact: manifest_v1
+  staged_artifact: roadb_768_square_g1_v1
+
+  # Field-for-field the p3_train_cv procedure -- the test asserts it -- so
+  # the only differences between this sweep and the gate-2 sweep are the
+  # staged artifact and nothing else.
+  trainable: head
+  geometry: g1
+  label: mean
+  backbone: vit_b16
+  max_epochs: 40
+  patience: 5
+  inner_val_frac: 0.2
+  monitor: inner_val_mse
+  learning_rate: 0.001
+  weight_decay: 0.01
+  batch_size: 32
+
+  # Road A's gate-2 seeds, verbatim (p3_train_cv.yaml).
+  seeds: [1337, 2024, 7, 99, 12345, 31337, 4242, 8675309, 271828, 161803]

@@ -1,0 +1,93 @@
+# Phase 1: build the manifest, labels, reliability and folds from the real data.
+#
+# A KEEPER run. It must be launched from a clean tree, and it reads the clinical
+# cohort, so it runs on the cluster only. Nothing here ever runs on a laptop.
+#
+# ----------------------------------------------------------------------------
+# RUN THE TWO CHEAP DIAGNOSTICS FIRST
+# ----------------------------------------------------------------------------
+# Both are read-only, take seconds, need no hashes, and surface the structural
+# problems that would otherwise appear half way through this build:
+#
+#   configs/p1_scan_folders.yaml        inventory of the folder tree
+#   configs/p1_inspect_scoresheet.yaml  row count, rater columns, grade histogram
+#
+# ----------------------------------------------------------------------------
+# THEN THE HASH ROUND TRIP -- five steps, by design
+# ----------------------------------------------------------------------------
+# The hashes below are placeholders (all zeros) and guard 3 refuses to start
+# until they name what is actually on disk. declare_inputs.py prints them but
+# never writes them. That makes the loop:
+#
+#   1. ON THE CLUSTER   PYTHONPATH=src python scripts/declare_inputs.py \
+#                           --config configs/p1_build_manifest.yaml
+#   2. ON THE LAPTOP    paste the printed YAML into the inputs: block below
+#   3. ON THE LAPTOP    commit
+#   4. ON THE LAPTOP    push
+#   5. ON THE CLUSTER   git pull in the WORKSPACE, then launch this config
+#
+# That is the intended procedure, not an obstacle. It is done once. What it buys
+# is that from step 5 onwards the hash is a lock: if any of these files changes
+# by a single byte, every subsequent run stops until a person explains why. The
+# alternative -- a tool that writes the hash for you -- makes the guard agree
+# with whatever is on disk and therefore check nothing.
+#
+# DECISION: committing these hashes is safe and is a decision, not an oversight.
+# A SHA-256 is a fingerprint, not data: it is irreversible, and these inputs are
+# multi-megabyte workbooks and image trees, so there is no small content space to
+# brute-force. The hashes may live in a public repository. The DATA may not, and
+# nothing here puts it there.
+#
+# ----------------------------------------------------------------------------
+# NOTE: every path contains spaces. They are quoted here and handled throughout
+# the loader, the hashing walk and the run directory; tests/test_paths_with_spaces.py
+# covers that chain. Point at the EXTRACTED directories, not the .zip files
+# sitting beside them.
+# ----------------------------------------------------------------------------
+
+schema_version: 1
+phase: p1
+tier: keeper
+seed: 1337
+
+inputs:
+  # The integer workbook is PRIMARY. Both forms are verified to hold identical
+  # content, so one is chosen and the other is an equivalence check rather than
+  # a second source of truth.
+  - name: scoresheet_primary
+    path: ${CLEFT_SCORESHEET}
+    rollup_sha256: 47a472bd4e5162c8b8fcb5fefc3e7bb4e146febd19c5709172515d3b9bce704d
+  - name: scoresheet_equivalence
+    path: ${CLEFT_SCORESHEET_TEXT}
+    rollup_sha256: d5239cb1c5adea31ba6d9b9644ce6bfdb7a6390b8a58e819027239c7dc8ad1d2
+  - name: patient_folders
+    path: ${CLEFT_PHOTOS}
+    rollup_sha256: c38b24f88c2f69945b4296665346ecb9141d2f424622e7b3775c3bffabb04f1b
+  - name: soft_label_crosscheck
+    path: ${CLEFT_SOFT_LABELS}
+    rollup_sha256: 59b061bafca3138c79bc425c6f1b1c588761ad026ad17f22b4967560169b0f4d
+
+task:
+  kind: build_manifest
+
+  primary_scoresheet: scoresheet_primary
+  # Set to null to skip the second workbook; it is an extra check, not a source.
+  equivalence_scoresheet: scoresheet_equivalence
+  soft_label_crosscheck: soft_label_crosscheck
+  patient_folders: patient_folders
+
+  # Which rater column is the orthodontist, for the single-rater learnability
+  # target. Named, not indexed, so a column reorder cannot silently change it.
+  orthodontist_rater: "Rater 8 - Orthodontist"
+
+  # The output artifact version. NEVER overwrite an existing one: create v2.
+  out_version: cleft_v1
+
+  n_folds: 5
+
+  # The measured cohort shape (brief §1.1). Asserted, not discovered.
+  expect_patients: 237
+  expect_frontal: 237
+  expect_basal: 236
+  expect_photoless: 14
+  expect_scored_rows: 251

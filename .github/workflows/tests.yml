@@ -1,0 +1,50 @@
+name: tests
+
+# Runs pytest. Does NOT build an image -- that is build-image.yml, which is
+# manual only. Target: under 60 seconds, so that committing before every run
+# costs nothing. The old pipeline rebuilt the image on every '**.py' change,
+# which made the loop an hour long and is why commits were skipped.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The provenance tests build their own throwaway git repos, but a
+          # shallow checkout still needs a resolvable HEAD.
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          # Matches the interpreter declared in docker/requirements.txt so that
+          # CI is not testing on a different python from the cluster.
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install test dependencies
+        # One source of truth: the pinned list lives in pyproject.toml under
+        # [project.optional-dependencies].test, not duplicated in this file where
+        # it would drift. CPU only, no torch -- that is what keeps this under a
+        # minute.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+
+      - name: Configure git for the fixture repositories
+        run: |
+          git config --global init.defaultBranch main
+          git config --global user.email "ci@example.invalid"
+          git config --global user.name "CI"
+
+      - name: Run pytest
+        run: python -m pytest -q --durations=10

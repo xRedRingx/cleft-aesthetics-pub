@@ -1,0 +1,20 @@
+# THE PRETRAINED INIT, FROZEN — Swin-B. See roadb_init_snapshot_vit_b16.yaml
+# for the full reasoning; every pretraining backbone gets its init declared,
+# not only the one that failed (roadb.PRETRAINED_INIT_IS_NOW_DECLARABLE).
+#
+# Snapshots swin_base_patch4_window7_224 at num_classes=0 into
+# data/inits/init_swin_b_v1/ with the upstream identity in MANIFEST.json.
+# Paste metrics.json `artifact.rollup_sha256_for_configs` into the swin
+# cells' pretrained_init inputs.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/roadb_init_snapshot_swin_b.yaml"
+
+schema_version: 1
+phase: roadb_p6
+tier: keeper
+seed: 1337
+
+task:
+  kind: snapshot_pretrained_init
+  backbone: swin_b

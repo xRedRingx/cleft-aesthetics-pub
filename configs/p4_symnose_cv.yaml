@@ -1,0 +1,180 @@
+# ############################################################################
+# RETIRED 2026-07-28. DO NOT RUN. §3.2 is closed and SymNose is OUT.
+# ############################################################################
+#
+# THIS IS NOT SYMNOSE, AND WAS NOT. It mirrors an auto-segmented UPPER LIP about
+# the FIXED IMAGE MIDLINE: no rotation correction, no registration, no nose, one
+# axis. SymNose levels the image on the intercanthal line first, outlines the
+# bottom of the nose AND the upper lip, and produces four face-view assessments
+# each on a different anatomically-derived fold axis -- registering extreme
+# lateral points to maximise overlap, superimposing alar bases and mouth corners,
+# a philtrum roundel, the mid-columella line -- plus lip dehiscence, three
+# user-outlined scar types and three base-view measures.
+#
+# So this index carries HEAD TILT, CROP CENTRING and LATERAL DISPLACEMENT, any of
+# which plausibly dominates the clinical asymmetry it was meant to measure.
+#
+# WHY SYMNOSE IS OUT -- a scope boundary, not a failure, and NOT the result below.
+# Every SymNose face measure depends on USER-PLACED ROUNDELS at named anatomical
+# points: canthi, alar bases, mouth corners, philtrum centre, nose tip,
+# mid-columella. Strange proposed automating the TRACING; the roundels are
+# separate manual work and equally essential. Automating SymNose therefore
+# requires LANDMARK DETECTION, which is outside this project's remit by
+# supervisory decision -- supervision rejected Bakaki's landmark work because it is not
+# deep learning and the project is directed at deep-learning methods.
+#
+# WHAT IT SCORED, AND WHAT THAT IS WORTH: PCC -0.066, Spearman -0.003. A NULL
+# RESULT FOR A NON-FAITHFUL REIMPLEMENTATION. Not evidence about upper-lip
+# asymmetry, not about SymNose, and NOT evidence for the scope decision above --
+# that argument stands on the landmark dependence alone and would stand
+# identically had this scored 0.4. Do not present one in support of the other.
+#
+# NO FAITHFUL REIMPLEMENTATION IS BEING ATTEMPTED.
+#
+# The file is kept as the record of what was built and what it measured.
+#
+# ----------------------------------------------------------------------------
+# What follows describes the retired index, unchanged.
+# ----------------------------------------------------------------------------
+#
+# ----------------------------------------------------------------------------
+# WHAT IS MEASURED
+# ----------------------------------------------------------------------------
+# PRIMARY INDEX: mean distance from the traced boundary to the mirrored traced
+# boundary, divided by sqrt(area). A boundary quantity because SymNose
+# superimposes BOUNDARIES, not areas; normalised so it does not simply track how
+# big the crop was.
+#
+# Companions, all reported: 1 - Dice (the area-based view), unmatched fraction,
+# the 95th-percentile boundary distance (not the maximum -- one stray pixel
+# should not define an index, which is what makes Hausdorff fragile on
+# segmentations), and the left-versus-right area and height differences. Those
+# last two are the interpretable half: "the left vermillion is 12% larger than
+# the right" is a sentence a clinician can check against the photograph, which a
+# boundary distance is not.
+#
+# Magnitudes, not signs. Laterality is not recorded anywhere in this cohort
+# (PLAN §4.1), so a signed index would encode something the labels cannot
+# contain.
+#
+# ----------------------------------------------------------------------------
+# TWO MIDLINES: IMAGE MIDLINE PRIMARY, BOTH REPORTED
+# ----------------------------------------------------------------------------
+# The primary index is computed about the IMAGE MIDLINE. Consistent with §3.1,
+# exact at G2, and -- the reason that decides it -- IT PRESERVES LATERAL
+# DISPLACEMENT, which in a unilateral cleft is genuine asymmetry and often its
+# largest component.
+#
+# Mirroring about the mask's own centroid scores a purely translated lip at
+# EXACTLY ZERO. That is precisely why it cannot be the primary index: it would
+# discard the thing being measured.
+#
+# BOTH ARE REPORTED, with centroid_offset_px beside them:
+#   * offsets of a few pixels -> the two indices agree and miscentring is a
+#     theoretical worry;
+#   * large offsets -> `lateral_component` (midline index minus centroid index)
+#     IS the lateral-displacement part of the asymmetry. That separates "the lip
+#     is shifted" from "the lip is misshapen", which are different clinical
+#     findings -- interesting in its own right rather than a nuisance.
+#
+# CAVEAT ON THE OFFSET: it is NOT purely a miscentring measure. An asymmetric lip
+# moves its own centroid -- a perfectly centred crop with 12px of extra vermillion
+# on one side gives a 6px offset entirely from the asymmetry. A large offset
+# therefore means miscentring OR genuine asymmetry, and cannot distinguish them
+# alone. Read it against the sheet.
+#
+# ----------------------------------------------------------------------------
+# WHAT CORRELATION TO EXPECT — STATED BEFORE THE RUN, NOT AFTER
+# ----------------------------------------------------------------------------
+# SymNose measures UPPER-LIP asymmetry. The label is an Asher-McDade composite
+# covering NASAL FORM, NASAL SYMMETRY, NASOLABIAL PROFILE and VERMILLION BORDER
+# -- four components, of which upper-lip symmetry is one and contributes
+# partially to a second.
+#
+# SO A MODEST CORRELATION IS THE EXPECTED OUTCOME, NOT A DISAPPOINTING ONE. An
+# index tracking the whole composite would be the surprise, and would warrant
+# asking what else it had picked up. This is written down in advance because
+# saying it afterwards is indistinguishable from explaining away a number.
+#
+# ----------------------------------------------------------------------------
+# VALIDATION [LITERATURE, from Strange]
+# ----------------------------------------------------------------------------
+# Score against SymNose-style output AND against the human ratings. No SymNose
+# ground-truth output exists for this cohort, so the human ratings are the
+# available half: this arm runs through the same 5-fold CV harness as every
+# other, against the mean label.
+#
+# THE PROTOCOL'S FINDING IS ABOUT RANK. It records excellent correlation between
+# human scores and SymNose scores WHEN RANKED BEST TO WORST. That is a rank
+# correlation, so SPEARMAN IS THE COMPARABLE STATISTIC AND PCC IS NOT. Both are
+# in metrics.json under `oof`; quoting the PCC against the protocol's ranked
+# finding would compare different quantities, which is the R2 error this project
+# has made four times already (PLAN §4.3).
+#
+# ----------------------------------------------------------------------------
+# WHAT THIS ARM INHERITS
+# ----------------------------------------------------------------------------
+# It is not a fresh start. Every limitation of the segmentation feeding it is a
+# limitation OF THIS SYMNOSE REIMPLEMENTATION, not a caveat about a component:
+#
+#   * the oral fissure is NOT RECOVERABLE in 7 of 9 sampled patients, so the
+#     upper/lower division is geometric rather than anatomical -- validated
+#     against the two detectable fissures at max 4px error, 3.1% of mask height;
+#   * the split ALWAYS FIRES, so it halves a mask whose crop excludes the lower
+#     lip (1 of 9, patient 17), and no shape statistic can detect that case;
+#   * the discriminant is implicitly calibrated on lighter skin, and the sample
+#     has one non-white patient out of nine.
+#
+# ----------------------------------------------------------------------------
+# Hashes: run scripts/declare_inputs.py and paste. Do not copy from a chat log.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p4_symnose_cv.yaml"
+
+schema_version: 1
+phase: p4
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+task:
+  kind: train_cv
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+
+  # No backbone at all: the features come from the traced boundary and the
+  # regressor only maps them to a grade. 9 features, 10 trained parameters --
+  # both indices, their gap, the offset, and the interpretable half-measures.
+  backbone: ridge
+  trainable: head
+  feature_source: symnose
+
+  # G2, and refused mechanically at G1: the mask is the full square so the
+  # midline is exact, and mirroring about the wrong line would measure the crop
+  # rather than the face.
+  geometry: g2
+  label: mean
+
+  max_epochs: 40
+  patience: 5
+  inner_val_frac: 0.2
+  monitor: inner_val_mse
+
+  learning_rate: 0.001
+  weight_decay: 0.01
+  batch_size: 32
+
+  # Five, as every Phase 4 arm. The band this arm reports is SPLIT variance --
+  # the ridge is closed-form, so the seed moves only which patients are held out
+  # (PLAN §4.12.1). It is not the same quantity as the ViT probe's 0.0137, and a
+  # delta against that probe must use combined_claimable_delta.
+  seeds: [1337, 2024, 7, 99, 12345]

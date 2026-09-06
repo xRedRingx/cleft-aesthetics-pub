@@ -1,0 +1,155 @@
+# PHASE 6 — THE FROZEN-GRAPH DIAGNOSTIC. NOT A LADDER ARM.
+#
+# One hypothesis test, run once. It exists because the seed band came back with
+# the gate MET and the MEAN a problem: the third regime scored pooled OOF PCC
+# 0.1507 (sd 0.0251, ten seeds, p6-srgnn-seedband-1) against the frozen ViT
+# linear probe's 0.2529 -- SR-GNN with trained graph layers, warm-started from
+# beauty pretraining, losing by 0.102 to an off-the-shelf ImageNet embedding
+# with a linear head.
+#
+# ----------------------------------------------------------------------------
+# WHY A DIAGNOSTIC AND NOT A DECISION
+# ----------------------------------------------------------------------------
+# The band run's signature is specific: selected_epochs 1-4 with one seed
+# taking epoch 1 in all five folds; shrinkage 0.14-0.18, so predictions
+# compress to a sixth of the label spread; qwk_3cat 0.0 at
+# n_distinct_3class_bins 1. That is the SAME signature as the ViT full
+# fine-tune that scored -0.013 -- 11,681,859 trainable parameters on ~152
+# training samples, stopping almost immediately.
+#
+# Two readings fit that evidence identically:
+#
+#   architecture   SR-GNN's representation is genuinely weaker at n=237, and
+#                  the trained layers are not the cause;
+#   configuration  the arm is over-parameterised the way ViT's full fine-tune
+#                  was, and the features are fine.
+#
+# Deciding between them by argument would be a guess. This arm measures.
+#
+# ----------------------------------------------------------------------------
+# WHAT THIS ARM IS
+# ----------------------------------------------------------------------------
+# The seed-band arm with ONE change of substance: `trainable: classifier`
+# freezes the graph layers too, so only the 2,049-parameter classifier fits.
+# That is an SR-GNN linear probe over the same 237 patients, the same folds,
+# the same label and the same frozen harness as the ViT probe -- so its pooled
+# OOF PCC compares to 0.2529 directly, which is the whole point.
+#
+# **It runs the model in EVAL mode while training, and that is the policy
+# rather than an implementation detail.** SR-GNN applies Dropout(0.2) twice
+# and carries two BatchNorms; in train mode the pre-classifier stack would
+# move under the head fitting on it and the arm would not be a probe at all.
+# See graph_cleft.FROZEN_GRAPH_DIAGNOSTIC.
+#
+# **This is the brief's own trap (§7: "do not freeze the graph layers in
+# SR-GNN or AG-Net -- that reduces the arm to a linear probe and tests
+# nothing") run DELIBERATELY, once.** The trap is about ladder arms, and this
+# is not one: metrics.json records `is_a_ladder_arm: false` and the regime as
+# `graph_probe_diagnostic`. Nothing in Stage D or E may cite this number as an
+# SR-GNN result.
+#
+# ----------------------------------------------------------------------------
+# THE RATE, AND WHAT IT CONFOUNDS ON PURPOSE
+# ----------------------------------------------------------------------------
+# learning_rate 1e-3 [DECIDED]: this project's head rate, the one the 0.2529
+# comparator used, for a 2,049-parameter head. The band arm's 1e-4 is a
+# 12M-stack rate and would leave this head undertrained for a reason unrelated
+# to the hypothesis. So parameter count and rate vary TOGETHER and cannot be
+# separated by this run -- deliberately, because both are "the configuration",
+# which is the whole of what is being tested against "the representation".
+# THIS IS NOT A RATE SWEEP. Do not tune toward 0.2529: a configuration found
+# by searching would answer "can this arm be made to score 0.25", which is not
+# the question and has no interesting negative.
+#
+# ----------------------------------------------------------------------------
+# READ THE OUTCOMES ASYMMETRICALLY — STATED BEFORE THE RUN
+# ----------------------------------------------------------------------------
+#   ~0.25  CONCLUSIVE for the configuration reading. This arm runs under
+#          WORSE-matched BatchNorm statistics than the trained arm -- the
+#          checkpoint's SCUT running statistics on cleft inputs, where the
+#          trained arm adapts them from cleft batches. A handicapped probe
+#          beating the trained arm can only strengthen the reading.
+#
+#   ~0.15  CONSISTENT with the architecture reading but does NOT establish it.
+#          That same BN asymmetry is a live alternative: the representation
+#          would be computed with statistics from a different distribution,
+#          and AdaBN is the documented remedy for exactly this on these
+#          backbones (PLAN §4.7, [MEASURED + LITERATURE]). A low score makes BN
+#          re-estimation the next arm, not the conclusion.
+#
+# ----------------------------------------------------------------------------
+# ONE SEED, AND WHAT ONE SEED CARRIES
+# ----------------------------------------------------------------------------
+# Seed 1337: the project's canonical seed and the first of the band's ten, so
+# this is comparable to the trained arm's own seed-1337 run as well as to its
+# mean. Declared, not selected after the fact.
+#
+# The two hypotheses sit ~0.10 apart and the closest resolution figure -- the
+# TRAINED arm's one-seed 0.0694, itself only a proxy, since this arm's band is
+# unmeasured and a 2,049-parameter probe should be tighter -- is below that. So
+# one seed discriminates 0.25 from 0.15 and licenses nothing finer: no delta
+# against any arm, and no quoted value for this arm beyond which side it fell.
+#
+# ----------------------------------------------------------------------------
+# INPUTS ARE THE BAND ARM'S, UNCHANGED [VERIFIED 2026-08-01]
+# ----------------------------------------------------------------------------
+# Same artifacts, same verified hashes as configs/p6_srgnn_seed_band.yaml, so
+# the two arms differ in the training policy and nothing about the data. Guard
+# 3 recomputes both at launch either way.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p6_srgnn_frozen_graph.yaml"
+
+schema_version: 1
+phase: p6
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+  - name: embeddings_srgnn_native
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_v1/srgnn__scut_masked__g2__native
+    rollup_sha256: 53f08076322d5d012790e58fa52e62033863e97f8e969d84afa059007d1cb968
+
+  - name: ckpt_srgnn_native_masked_g2
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_srgnn_native_masked_g2__5e927402__p6-pt-srgnn-native-g2-v2/pretrained.npz
+    rollup_sha256: c02441760520898e6737ecb18bb1f5aa9e9b9717e23dd5e81bcf614c02e24002
+
+task:
+  kind: train_graph_cv
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+  embeddings_artifact: embeddings_srgnn_native
+  checkpoint: ckpt_srgnn_native_masked_g2
+
+  # Identical to the band arm, so the comparison is about the policy.
+  backbone: srgnn
+  init: scut_masked
+  geometry: g2
+  region_scheme: native
+  label: mean
+
+  # THE DIAGNOSTIC: graph layers frozen too, classifier alone fits.
+  trainable: classifier
+
+  seeds: [1337]
+
+  # The cleft convention, matched to the band arm: early stopping stays where
+  # collapse is the documented behaviour.
+  max_epochs: 40
+  patience: 5
+  inner_val_frac: 0.2
+  monitor: inner_val_mse
+
+  # The probe rate, not the 12M-stack rate. See above.
+  learning_rate: 0.001
+  weight_decay: 0.01
+  batch_size: 16

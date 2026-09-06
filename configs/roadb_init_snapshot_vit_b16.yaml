@@ -1,0 +1,32 @@
+# THE PRETRAINED INIT, FROZEN — ViT-B/16. The LAST undeclared download.
+#
+# [2026-08-10] Until this run, the ImageNet init was the one input guard 3
+# never verified: pretrained=True re-downloads every run (HOME is ephemeral),
+# nothing hashed the bytes, and when two ViT-512 runs at one SHA produced
+# different checkpoints, no recorded field could say whether their inits
+# differed (roadb.PRETRAINED_INIT_IS_NOW_DECLARABLE). Chain 3's shape: the
+# weights that produced a result were not recoverable from the config.
+#
+# This run downloads ONCE, snapshots the num_classes=0 state dict into
+# data/inits/init_vit_b16_v1/ with the upstream identity (timm
+# pretrained_cfg) in MANIFEST.json, and reports the whole-directory rollup in
+# metrics.json `artifact.rollup_sha256_for_configs` — the value the ViT
+# pretraining configs declare and every future run verifies.
+#
+# After it: paste the rollup into the vit cells' pretrained_init inputs, then
+# run ViT-512 TWICE from the declared init. Agreement indicts the upstream
+# artifact for the earlier divergence; disagreement indicts
+# dynamic_img_size's per-forward resample and indicates the img_size routing
+# fix. That is the experiment the unarbitrable comparison becomes.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/roadb_init_snapshot_vit_b16.yaml"
+
+schema_version: 1
+phase: roadb_p6
+tier: keeper
+seed: 1337
+
+task:
+  kind: snapshot_pretrained_init
+  backbone: vit_b16

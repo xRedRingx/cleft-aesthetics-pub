@@ -1,0 +1,104 @@
+# PHASE 6 §5 — THE GRAPH-LAYER SEED BAND. A GATE, NOT A NICETY.
+#
+# Same procedure as Phase 3 gate 2, on the THIRD REGIME: one SR-GNN cleft arm,
+# TEN seeds, full 5-fold CV, one job, one env.json. Reports mean, SD, min,
+# max and the claimable-delta rule at 1, 5 and 10 seeds (seed_variance.json,
+# derived from THIS sweep -- phase3.seed_variance's formula, never the frozen
+# probe's 0.0137).
+#
+# ----------------------------------------------------------------------------
+# WHY THIS BAND CANNOT BE INHERITED [brief §5]
+# ----------------------------------------------------------------------------
+# Phase 3's SD 0.0137 was measured on a FROZEN linear probe -- initialisation
+# plus inner-val split. This arm trains ~12M graph-layer parameters on ~152
+# samples per fold: a third regime, with more seed sensitivity available to
+# it, and Phase 4's patch arms already measured 3.3x noisier on a LESSER
+# change. **No SR-GNN or AG-Net delta is interpretable until this band is
+# known** -- it is the denominator of every graph claim.
+#
+# What the seed varies here: graph-layer initialisation is WARM-STARTED from
+# the checkpoint (identical across seeds), so the seed drives the classifier
+# init, the batch order, and the inner-val split. Say that when quoting the
+# band (PLAN §4.12.1: two arms can both report "seed SD" and mean different
+# things).
+#
+# ----------------------------------------------------------------------------
+# THE ARM
+# ----------------------------------------------------------------------------
+# SR-GNN, scut_masked init at G2, native scheme -- the canonical ladder arm
+# (embedding_plan: ladder at G2, canonical scheme native). Frozen feature
+# maps from the extraction artifact; graph layers warm-started from the
+# PAIRED checkpoint (the run refuses a hash mismatch between the artifact's
+# recorded checkpoint and the declared one); classifier re-initialised at the
+# training-fold mean for gate 3. EARLY STOPPING APPLIES -- this is cleft
+# training, where collapse is the documented behaviour; the fixed-budget
+# decision was pretraining's (PLAN gate-4 amendment).
+#
+# Harness knobs match the cleft convention: patience identical across arms
+# (PLAN §4.7), monitor inner_val_mse, inner_val_frac 0.2 -- the gate-2
+# lineage. learning_rate 1e-4 [DECIDED]: the full-fine-tune scale for a 12M
+# trainable stack; the frozen-head 1e-3 is a 769-parameter rate.
+#
+# ----------------------------------------------------------------------------
+# BOTH INPUT HASHES ARE REAL [VERIFIED 2026-08-01] — READY TO LAUNCH
+# ----------------------------------------------------------------------------
+# The extraction run produced data/embeddings/embeddings_v1 (17 sets); the
+# declared embeddings rollup came from scripts/declare_inputs.py over the
+# srgnn__scut_masked__g2__native set — 95,136,804 bytes, which is the
+# (237, 2048, 7, 7) float32 feature-map decision exactly. The checkpoint
+# input carries its run's own recorded pretrained.npz hash. This config
+# shipped with an all-zeros embeddings placeholder until the artifact
+# existed; guard 3 refused the run, which is the placeholder working. It
+# re-verifies both hashes at launch either way.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p6_srgnn_seed_band.yaml"
+
+schema_version: 1
+phase: p6
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+  - name: embeddings_srgnn_native
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_v1/srgnn__scut_masked__g2__native
+    rollup_sha256: 53f08076322d5d012790e58fa52e62033863e97f8e969d84afa059007d1cb968
+
+  - name: ckpt_srgnn_native_masked_g2
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_srgnn_native_masked_g2__5e927402__p6-pt-srgnn-native-g2-v2/pretrained.npz
+    rollup_sha256: c02441760520898e6737ecb18bb1f5aa9e9b9717e23dd5e81bcf614c02e24002
+
+task:
+  kind: train_graph_cv
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+  embeddings_artifact: embeddings_srgnn_native
+  checkpoint: ckpt_srgnn_native_masked_g2
+
+  backbone: srgnn
+  init: scut_masked
+  geometry: g2
+  region_scheme: native
+  label: mean
+
+  # Ten seeds, one job. Distinct by test; the first five are Phase 4's, so
+  # the two sweeps share a spine for eyeballing.
+  seeds: [1337, 2024, 7, 99, 12345, 42, 271828, 314159, 161803, 777]
+
+  max_epochs: 40
+  patience: 5
+  inner_val_frac: 0.2
+  monitor: inner_val_mse
+
+  learning_rate: 0.0001
+  weight_decay: 0.01
+  batch_size: 16

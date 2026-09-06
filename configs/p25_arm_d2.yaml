@@ -1,0 +1,74 @@
+# PHASE 25 -- ARM D2 (DINOv2-B/14) vs the 0.2520 probe
+#
+# phase25.EXIT_CRITERIA (LOCKED 2026-09-02), phase25.THE_TWO_ARMS_RULED.
+# PRIMARY 1 of the three-contrast family. **NOT a clean control**: it varies objective, patch size and native resolution together (phase25.THE_TWO_ARMS_RULED).
+#
+# **BLOCKING, AND IT IS NOT CLOSED BY THIS FILE**: the checkpoint tag below
+# resolved in timm 1.0.27 under Python 3.13 on the laptop. **The cluster is
+# pinned at timm 1.0.7 and nothing about 1.0.7's model index is verifiable
+# from here** (phase25.THE_CHECKPOINTS_RESOLVED). If the tag does not
+# resolve in the pinned image this config CANNOT run, and the fix is a
+# decision about the pin, not an edit here.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p25_arm_d2.yaml"
+
+schema_version: 1
+phase: p25
+tier: keeper
+seed: 1337
+# **NO PLACEHOLDER.** `embeddings` was filled 2026-09-02 from
+# declare_inputs.py after the extraction ran. The hash is keyed
+# in the generator BY SET DIRECTORY, so a crossed fill -- each
+# arm on the other's features -- is a mismatch the generator
+# refuses rather than a swap nothing downstream would notice.
+inputs:
+- name: manifest_v1
+  path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+  rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+- name: staged_v1
+  path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+  rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+- name: embeddings
+  path: /home/user/codex/cleft-aesthetics/data/embeddings/dinov2_g1_v1/vit_b14_dinov2__dinov2_lvd142m__g1
+  rollup_sha256: b354326677cbc78f39286e43389be1a6eebc0aef300373cb32bff294c20b0edd
+
+task:
+  kind: train_cv
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+  embeddings_artifact: embeddings
+
+  # Every field below is COPIED from the probe's own
+  # config (configs/p7_d1_vit_b16_imagenet_g1.yaml) rather than retyped.
+  #
+  # [CORRECTED 2026-09-06] This read "EVERY field below is
+  # the probe's own ... so one factor is true by
+  # construction rather than by intention". Two recipe
+  # fields are NOT copied and are not below: weight_decay,
+  # which takes a schema default of 0.01 and so matches the
+  # probe, and batch_size, which takes a schema default of
+  # 16 against the probe's 32. The values are left as they
+  # ran, because a config must keep describing the run that
+  # produced its figures. The divergence is INERT here: the
+  # head is fit full batch and batch_size is never passed
+  # to EmbeddingHeadBackbone. See phase25.PHASE_25_CLOSING
+  # criterion 2 and its dated correction.
+  geometry: g1
+  label: mean
+  max_epochs: 40
+  patience: 5
+  inner_val_frac: 0.2
+  monitor: inner_val_mse
+  seeds:
+  - 1337
+  - 2024
+  - 7
+  - 99
+  - 12345
+  trainable: head
+  learning_rate: 0.001
+
+  # The ONE factor.
+  backbone: vit_b14_dinov2
+  init: dinov2_lvd142m

@@ -1,0 +1,105 @@
+# PHASE 6 — PER-FOLD BN RE-EXTRACTION OF THE SR-GNN FEATURE MAPS.
+#
+# ----------------------------------------------------------------------------
+# WHY THIS EXISTS — it became necessary, not optional
+# ----------------------------------------------------------------------------
+# The frozen SR-GNN probe scored 0.1340 against the ViT linear probe's 0.2529.
+# The AdaBN cleft arm — re-estimating the 2 POST-backbone BatchNorms — came
+# back at **0.0468**, worse than doing nothing, and outside both readings
+# registered before it ran.
+#
+# The mechanism is partial adaptation: bn1 and bn2 were calibrated for cleft
+# statistics while still receiving activations from 40 Xception BatchNorms
+# calibrated for SCUT. A uniform mismatch became an internally inconsistent
+# one, and shrinkage moved 0.2943 → 0.4221 as the head fitted harder to a
+# disturbed representation.
+#
+# **That 0.087 swing is what makes this run necessary.** It measures the 40
+# extraction-time layers as load-bearing rather than idle history. Until they
+# are calibrated for cleft, the probe's 0.1340 cannot be attributed to
+# SR-GNN's representation — and ViT carries no equivalent handicap, LayerNorm
+# having no running statistics at all. Without this, the write-up would report
+# that the documented remedy was applied to 2 of 42 layers and made things
+# worse, which is a fact about the experiment rather than about the
+# architecture.
+#
+# ----------------------------------------------------------------------------
+# WHY FIVE SETS — THE LEAK IS THE THING TO GET RIGHT
+# ----------------------------------------------------------------------------
+# Re-estimating BatchNorm on cleft data makes every feature vector depend on
+# WHICH patients were adapted on. Do it once over all 237 and each fold's test
+# patients sit inside the representation used to predict them: the arm scores
+# better, the shapes are all correct, the hash is valid, every gate passes,
+# and nothing downstream can see it.
+#
+# So `per_fold_bn_reestimation: true` produces **one set per fold**, each
+# adapted on that fold's TRAINING patients only, named `..._adabn_fold<N>`.
+# Each records `adapted_on_patient_ids`, and the exclusion is asserted twice —
+# here at build time, and again in the consuming arm, which is the run that
+# reports the number.
+#
+# **Adapted on the OUTER training fold, not the inner.** `inner_val_split`
+# seeds off `config.seed`, so inner-train rows would make the artifact
+# seed-dependent — fifty sets for a ten-seed band, a different representation
+# per arm. The outer fold is seed-independent, which is what lets one artifact
+# serve every seed. The stated cost: inner-val patients contribute to the
+# statistics, so the early-stopping signal is mildly optimistic. That is NOT a
+# leak into the reported metric, which is built from test folds only.
+#
+# ----------------------------------------------------------------------------
+# COST
+# ----------------------------------------------------------------------------
+# Five extraction passes over 237 images plus five adaptation passes over ~190
+# — about five times one extraction, which was minutes. The artifact is
+# 5 × 95,136,804 bytes ≈ 476 MB.
+#
+# ----------------------------------------------------------------------------
+# WHAT TO RUN AFTERWARDS — read configs/p6_srgnn_probe_adabn_artifact.yaml
+# ----------------------------------------------------------------------------
+# The 2×2 is the point: {40 SCUT, 40 cleft} × {2 SCUT, 2 cleft}. Two cells are
+# measured (0.1340 and 0.0468). This artifact supplies the other two, and the
+# FULLY CONSISTENT cell — 40 cleft + 2 cleft — is `trainable: classifier_adabn`
+# on this artifact, not the plain probe.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p6_extract_srgnn_adabn.yaml"
+
+schema_version: 1
+phase: p6
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+  - name: ckpt_srgnn_native_masked_g2
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_srgnn_native_masked_g2__5e927402__p6-pt-srgnn-native-g2-v2/pretrained.npz
+    rollup_sha256: c02441760520898e6737ecb18bb1f5aa9e9b9717e23dd5e81bcf614c02e24002
+
+task:
+  kind: extract_embeddings
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+
+  # A NEW version. data/embeddings/embeddings_v1 is immutable and still holds
+  # the SCUT-statistics maps every result so far was computed on — those must
+  # remain readable, because the 0.1340 and the 0.0468 were measured on them.
+  out_version: embeddings_adabn_v1
+
+  batch_size: 32
+
+  # THE FIELD THAT MAKES THIS FIVE SETS RATHER THAN ONE.
+  per_fold_bn_reestimation: true
+
+  sets:
+    - backbone: srgnn
+      init: scut_masked
+      geometry: g2
+      pretrain_scheme: native

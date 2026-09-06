@@ -1,0 +1,62 @@
+# ROAD B PHASE 5 — MASKED SCUT AT 512. Build order step 2 (PHASE_6_STRUCTURE).
+#
+# The frozen composition at a new size argument: apply_arrival_mask -> stage
+# -> unwarp for G2, exactly the path the bit-for-bit test pins at 224. G1 and
+# G2 stay bundled in one artifact per the recorded masked-SCUT decision
+# (roadb.ARTIFACT_PER_SETTING's contrast: they are built AND consumed
+# together).
+#
+# **[MEASURED] Every SCUT source is 350x350, so at 512 ALL 5,499 faces are
+# upsampled 1.46x.** Not a mixed population -- a uniformly interpolated one.
+# The sheet renders the masked panels at NATIVE 512 beside the placement
+# panel -- nearest-upscaled to the same size, so it stays blocky-sharp --
+# and the masked panels' smoothing beside it is the interpolation, VISIBLE
+# to the reviewer (confirmed on the first review). The write-up guard:
+# higher-resolution pretraining adapts positional geometry, not finer
+# detail (roadb.PHASE_6_STRUCTURE, and supervision sees that before the runs).
+# MANIFEST.json carries `size` and `interpolation_note`, so the artifact
+# says what its pixels are without this run's records.
+#
+# **KEEPER, deliberately -- and Road A's dev was the precedent this departs
+# from.** git shows p5_masked_scut.yaml was born `tier: dev` and never
+# changed, so masked_v1 was built at dev. The MANIFEST carries the
+# generating run and sha8 either way, but only keeper GUARANTEES the tree
+# was clean -- that the recorded sha describes the code that built it. This
+# artifact feeds twelve Road B pretraining cells; five minutes buys that
+# guarantee.
+#
+# Review the sheet before the pretraining configs consume the artifact -- the
+# standing Phase 2 lesson. After the artifact build, paste
+# metrics.json `artifact.rollup_sha256_for_configs` into the Road B
+# pretraining configs that declare masked_512_v1.
+#
+# CLEFT_SCUT_ROOT must be set (cluster or laptop; SCUT exists on both).
+#
+#   python -m cleft.run --config configs/roadb_p5_masked_scut_512.yaml
+
+schema_version: 1
+phase: roadb_p5
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: scut_root
+    path: ${CLEFT_SCUT_ROOT}
+    rollup_sha256: 1041ceed0ef458e97c8be845eda30cf7957067fa730a4975a0f83bd8ed4947ec
+
+task:
+  kind: masked_scut
+
+  scut_root: scut_root
+  geometries: ["g1", "g2"]
+  size: 512
+
+  # Full cohort, artifact-producing -- the mode Road A's config settled on
+  # after three sheet-only runs left masked_v1 nonexistent.
+  n_faces: 0
+  n_sheet: 6
+  ar_sampling: observed
+
+  write_artifact: true
+  out_version: masked_512_v1
+  checkpoint_every: 250

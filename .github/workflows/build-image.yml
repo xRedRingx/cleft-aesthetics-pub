@@ -1,0 +1,136 @@
+name: build-image
+
+# MANUAL ONLY. Never on push, never on pull_request, never on a python change.
+#
+# Building the image on every push is the exact root cause of the previous
+# pipeline's failure: gigabyte rebuilds made the edit-run loop an hour long, so
+# commits were avoided, so every run carried dirty_tree: true.
+#
+# Run this only when docker/requirements.txt changes. The image is tagged by the
+# hash of that file, so the tag identifies the environment rather than the code.
+# The job prints the resulting digest; pin THAT in the Run:AI workload.
+on:
+  workflow_dispatch:
+    inputs:
+      push:
+        description: "Push to Docker Hub (unchecked = build only, no push)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # The same interpreter series the image ships, so the hygiene step runs
+          # where tests/test_environment.py would also be satisfied.
+          python-version: "3.11"
+          cache: pip
+
+      - name: Verify the Dockerfile contains no application code
+        # The hygiene test also enforces this, but the build must not be able to
+        # succeed without it even if someone skips the test suite.
+        #
+        # Installs the full test extra rather than a hand-picked subset: pytest
+        # loads tests/conftest.py whatever single file is selected, and that
+        # imports the fixture builders, which import numpy. Guessing the minimum
+        # here is what made this step fail with ModuleNotFoundError.
+        run: |
+          python -m pip install --upgrade pip >/dev/null
+          pip install -e ".[test]" >/dev/null
+          python -m pytest tests/test_workflow_hygiene.py -q
+
+      - name: Compute the environment tag from requirements.txt
+        id: tag
+        run: |
+          HASH=$(sha256sum docker/requirements.txt | cut -c1-12)
+          echo "tag=req-${HASH}" >> "$GITHUB_OUTPUT"
+          echo "Environment tag: req-${HASH}"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: ${{ inputs.push }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Read the declaration that the build will enforce
+        id: python
+        run: |
+          set -euo pipefail
+          DECLARED=$(sed -n \
+            's/^#[[:space:]]*python:[[:space:]]*\([0-9.]*\)[[:space:]]*$/\1/p' \
+            docker/requirements.txt)
+          STATUS=$(sed -n \
+            's/^#[[:space:]]*python_declaration_status:[[:space:]]*\([A-Z]*\)[[:space:]]*$/\1/p' \
+            docker/requirements.txt)
+          [ -n "$DECLARED" ] || { echo "::error::docker/requirements.txt has no '# python: X.Y.Z' line."; exit 1; }
+          echo "declared=${DECLARED}" >> "$GITHUB_OUTPUT"
+          echo "status=${STATUS}" >> "$GITHUB_OUTPUT"
+          echo "declared ${DECLARED} [${STATUS}] - docker/Dockerfile fails the build if the image disagrees"
+
+      # ONE step: build and push together.
+      #
+      # The interpreter check lives inside the Dockerfile (see the RUN that reads
+      # /tmp/requirements.txt), so it runs as a build layer and an image whose
+      # python disagrees with the declaration cannot be built at all -- not merely
+      # cannot be pushed.
+      #
+      # There is deliberately no `load: true`. Loading exported a multi-GB torch
+      # image out of buildx and re-imported it into the daemon, which exhausted the
+      # runner's ~14 GB of free space and failed at "importing to docker". Nothing
+      # here needs the image in the local daemon.
+      #
+      # With push disabled this still builds every layer, so a dry run verifies the
+      # interpreter without publishing anything.
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: docker
+          file: docker/Dockerfile
+          push: ${{ inputs.push }}
+          # Exactly one immutable tag. No ':latest' -- a mutable tag lets a
+          # queued Run:AI job pull a different environment mid-experiment, and
+          # then the arm is not comparable with the ones before it.
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/cleft-aesthetics:${{ steps.tag.outputs.tag }}
+          provenance: false
+
+      - name: Report the digest to pin
+        if: always()
+        run: |
+          {
+            echo "### Image built"
+            echo ""
+            echo "| field | value |"
+            echo "|---|---|"
+            echo "| tag | \`${{ steps.tag.outputs.tag }}\` |"
+            echo "| digest | \`${{ steps.build.outputs.digest || 'not pushed' }}\` |"
+            echo "| python | \`${{ steps.python.outputs.declared }}\` |"
+            echo "| declaration status | \`${{ steps.python.outputs.status }}\` |"
+            echo "| pushed | ${{ inputs.push }} |"
+            echo ""
+            echo "The python version is both the declared and the measured one: the"
+            echo "Dockerfile reads the declaration from the copied requirements.txt"
+            echo "and exits non-zero if \`sys.version_info\` disagrees, so a"
+            echo "successful build IS the measurement. Grep the build log for"
+            echo "\`python measured\` to see the line it printed."
+            echo ""
+            echo "Pin the digest in the Run:AI workload and pass it to the job as"
+            echo "\`CLEFT_IMAGE_DIGEST\` so it lands in every run's env.json."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # If the runner ever runs out of disk again, free the pre-installed
+      # toolchains before the build step rather than reintroducing `load: true`:
+      #   sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost
+      # Not done pre-emptively: without `load` the build no longer exports the
+      # image to the daemon, which is what exhausted the ~14 GB in the first place.

@@ -1,0 +1,148 @@
+# PHASE 5 — UNIVARIATE FEATURE RELEVANCE. A DIAGNOSTIC, NOT AN ARM.
+#
+# ############################################################################
+# RUN 2026-07-30. WHAT IT DECIDED, AND WHAT IT DID NOT.
+# ############################################################################
+# Ranked by |Spearman|, n=237. Thresholds are COMPUTED by
+# relevance.significance_threshold, not memorised: 0.128 uncorrected, 0.199
+# Bonferroni across 22 features.
+#
+#     1 philtrum         0.151     19 alar_base   ~0
+#     2 labial_tubercle  0.138     20 commissure  ~0
+#     3 philtral_column  0.122     22 nasal_tip    0.002
+#     4 subnasale          —
+#
+# NOTHING CLEARS 0.199. So this is a ranking that informs a design decision,
+# exactly as declared before the run, and not a set of claims. metrics.json now
+# carries BOTH bars and `clearing_bonferroni` — reporting only the uncorrected
+# one would let the two features above it read as findings.
+#
+# The top four are all MIDLINE, all LOWER FACE, all philtral and upper-lip
+# complex, which coheres with the group's own finding that raters are more
+# reliable scoring lips alone. Two independent lines of evidence, same anatomy.
+#
+# nasal_tip is LAST of 22, so the supervision material's suggestion is NOT SUPPORTED by this
+# measurement — and the scope is the whole of what makes that usable. What was
+# measured is pixel-level mirror asymmetry WITHIN A BOX placed by anatomy
+# fractions. Two other readings are untouched and remain live:
+#   * tip DEVIATION from the midline — a displacement, not a regional pixel
+#     difference. A tip displaced bodily off the midline can leave the mirror
+#     difference inside its own box nearly unchanged, because the box travels
+#     with the anatomy fractions. It is also what the Phase 2 cleft sheet's tilt
+#     gradient pointed at.
+#   * the tip as an ALIGNMENT ANCHOR — a use, not a feature.
+# DO NOT record this as "the nose tip does not matter": that attaches a correct
+# number to a question it cannot answer. See relevance.NOSE_TIP_DECISION.
+#
+# A METHODOLOGICAL NOTE THAT GENERALISES. mad_whole scores 0.004 while individual
+# regions carry 3x to 30x more and the bands are near zero — so the
+# mirror-difference arm's PCC 0.158 comes from the RIDGE COMBINING many weak
+# regional signals, not from any single site and not from the aggregate. An
+# aggregate that averages heterogeneous signals reports none of them: third
+# instance after the fairness quartiles and separability. See
+# relevance.AGGREGATION_NOTE.
+#
+# CONSEQUENCE FOR THE SYNTHESIS, recorded and NOT acted on: the TPS anchors the
+# philtrum — rank 1 — so it cannot deform the best-correlating region, and of its
+# four targets alar_base (19th) and commissure (20th) are essentially zero. Not
+# decisive, because these are different quantities: the TPS displaces a LANDMARK
+# and this index measures PIXEL ASYMMETRY IN A BOX. A decision is needed before
+# Phase 7; changing targets now to chase a ranking that clears no corrected
+# threshold would be fitting the instrument to a diagnostic.
+#
+# ----------------------------------------------------------------------------
+#
+# Which regions' asymmetry actually tracks the grade, one feature at a time.
+#
+# No fitting, no seeds, no folds, nothing tuned on the result. It reads the 22
+# mirror-difference features already computed for all 237 patients and
+# correlates each ONE AT A TIME against the mean label.
+#
+# ----------------------------------------------------------------------------
+# WHY IT EXISTS
+# ----------------------------------------------------------------------------
+# Supervision suggested considering the nose tip. That converges three ways:
+#
+#   * the instruction given;
+#   * the Phase 2 cleft contact sheet, where the apparent tilt is worst at the
+#     NOSE TIPS, less at the eyes, least at the lips -- which is not head roll
+#     (roll rotates every structure equally) but nasal deviation, septum and tip
+#     displaced off the facial midline;
+#   * Asher-McDade scoring NASAL FORM and NASAL SYMMETRY as two of its four
+#     components.
+#
+# And it matches SymNose, which uses nasion and nose-tip roundels for bridge
+# deviation and a mid-columella axis for the upper-lip assessment.
+#
+# So before deciding how the nose tip enters the pipeline -- alignment anchor,
+# weighted region, or TPS deformation target are three different builds -- this
+# says whether its asymmetry tracks the grade at all. The relevant features are
+# already in the set: mad_region_nasal_tip, mad_region_nasal_dorsum_upper,
+# mad_region_nasal_dorsum_lower, mad_region_columella, mad_region_alar_base.
+#
+# ----------------------------------------------------------------------------
+# HOW TO READ IT — AND THE CAVEAT THAT MATTERS MOST
+# ----------------------------------------------------------------------------
+# NO MULTIPLE-COMPARISON CORRECTION IS APPLIED. With 22 features, some will
+# correlate by chance. This is a RANKING TO INFORM A DESIGN DECISION, NOT A SET
+# OF CLAIMS. Anything acted on needs its own arm with the usual claim criterion
+# (PLAN §4.3: paired BCa over patients excluding 0, and the delta exceeding the
+# combined seed uncertainty of the two arms).
+#
+# BOTH STATISTICS ARE REPORTED and they answer different questions. Spearman
+# asks whether the ORDERING agrees; Pearson whether the relationship is LINEAR.
+# Asymmetry indices are bounded below at zero and right-skewed, so the two can
+# disagree -- a feature that ranks well while correlating poorly is still signal,
+# which is why the ranking is by |Spearman|.
+#
+# WHY UNIVARIATE RATHER THAN RIDGE COEFFICIENTS. The obvious move is to read
+# coefficients off the mirror-difference arm, and it would be wrong: the region
+# features are strongly correlated with each other -- a face asymmetric at the
+# alar base is usually asymmetric at the nostril sill too -- and correlated
+# predictors make individual coefficients unstable. They can flip sign on a
+# resample while the model's predictions barely move. A univariate correlation
+# asks a cleaner question and answers it cleanly.
+#
+# ----------------------------------------------------------------------------
+# TIER
+# ----------------------------------------------------------------------------
+# dev, deliberately. It produces no citable number -- it produces a ranking that
+# informs what to build next. A keeper tier would imply otherwise.
+#
+# ----------------------------------------------------------------------------
+# G2, matching the mirror-difference arm that produced these features. At G1 the
+# trapezium corners are white and symmetric, so they contribute zero difference
+# while still counting in the mean, and geometry.mirror refuses G1 outright.
+#
+# Hashes: run scripts/declare_inputs.py and paste. Do not copy from a chat log
+# -- a wrong hash has already propagated into a second config once.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p5_feature_relevance.yaml"
+
+schema_version: 1
+phase: p5
+tier: dev
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+task:
+  kind: feature_relevance
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+
+  # Matches the mirror-difference arm exactly. Any difference here would rank
+  # features computed under a geometry no arm actually used.
+  geometry: g2
+
+  # PRIMARY target per §4.2: mean of 5 raters.
+  label: mean

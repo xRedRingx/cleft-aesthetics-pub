@@ -1,0 +1,67 @@
+# PHASE 2 VISUAL CHECK — run this BEFORE any full patch build.
+#
+# The Phase 2 equivalent of the folder scan: cheap, read-only over the images,
+# and it answers what no fixture can. Renders 12 patients at both geometries with
+# the mask boundary and patch boxes drawn on.
+#
+# WHAT TO LOOK FOR (brief §7). Report back in text:
+#
+#   1. Do the band boundaries land sensibly? Eyes in the top band; alar bases NOT
+#      sitting on the eyes/nose seam; commissures inside the bottom band.
+#   2. Does the centre patch of the bottom band cover the philtrum and cupid's
+#      bow? That patch is the midline structure the asymmetry pairs reference.
+#   3. How much white do the outer G1 patches actually contain? The magenta line
+#      is the trapezium edge; anything outside it is padding.
+#   4. Does G2 look anatomically plausible, or grotesque?
+#
+# If the boundaries land badly the fix is to MOVE them, from anatomy, in
+# PatchConfig.bands — never to tune them against a metric.
+#
+# ----------------------------------------------------------------------------
+# The PNGs are CLUSTER-ONLY and must not leave the cluster. The filename contains
+# "contact_sheet", so the tier guard refuses to mark them SHAREABLE: they render
+# patient faces. metrics.json beside them is aggregate and may travel.
+# ----------------------------------------------------------------------------
+#
+# Hashes: run scripts/declare_inputs.py and paste, as for p1_build_manifest.yaml.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p2_contact_sheet.yaml"
+
+schema_version: 1
+phase: p2
+tier: dev
+
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: patient_folders
+    path: "${CLEFT_PHOTOS}"
+    rollup_sha256: c38b24f88c2f69945b4296665346ecb9141d2f424622e7b3775c3bffabb04f1b
+
+task:
+  kind: contact_sheet
+
+  manifest_artifact: manifest_v1
+  patient_folders: patient_folders
+
+  # The primary scheme. Re-run with "anatomy" to check those region placements,
+  # which are a design choice of mine and the least verified thing in Phase 2.
+  generator: grid
+
+  geometries: ["g1", "g2"]
+
+  # Four per class across the three reporting classes. Grade 4-5 faces are where
+  # a band boundary is most likely to land somewhere silly, so they must be in
+  # the sample rather than left to chance.
+  n_patients: 12
+  columns: 4
+
+  # "keep" so the sheet shows how much white the outer patches really contain.
+  # Deciding between drop and clip is what the sheet is for.
+  boundary_rule: keep
+  patch_seed: 1337

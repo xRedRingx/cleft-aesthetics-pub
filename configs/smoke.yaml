@@ -1,0 +1,36 @@
+# Trivial config that exercises the entire path without doing real work.
+#
+# This is the template every real config follows. The rules it demonstrates:
+#
+#   * Every scientific setting lives here, never on the command line. The only
+#     two CLI arguments that exist are --config and --out.
+#   * Every input artifact is declared by name, path and rollup hash. If the
+#     directory hashes differently, the run does not start.
+#   * tier is 'dev' or 'keeper'. A keeper run on a dirty tree aborts; only
+#     keeper runs are citable.
+#
+# Run it with:
+#   python -m cleft.run --config configs/smoke.yaml
+
+schema_version: 1
+phase: p0
+
+# The shipped template stays on dev so that copying it can never produce an
+# accidental keeper run. Real configs set this deliberately.
+tier: dev
+
+seed: 1337
+
+inputs:
+  - name: values
+    # Relative paths resolve against the repo root, so the same config works on
+    # the laptop and on the NFS checkout.
+    path: data/smoke/v1
+    # Regenerate with: python scripts/make_smoke_input.py
+    rollup_sha256: 031884514ea94d4061f269e81f6208d685ca0c9a3f0ced7df5ba7a0f15f60854
+
+task:
+  kind: smoke
+  # Asserted against the input at runtime: a config whose claim about its data
+  # has drifted must stop the run, not adapt to it.
+  n_samples: 64

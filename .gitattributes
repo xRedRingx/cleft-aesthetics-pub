@@ -1,0 +1,13 @@
+# Line endings are NOT converted. This is a correctness requirement, not a
+# style preference.
+#
+# A data artifact's rollup hash is a SHA-256 over its bytes. If git rewrote
+# LF <-> CRLF on checkout, the same artifact would hash differently on the
+# Windows laptop and on the Linux cluster, and guard 3 would abort every cluster
+# run with a hash mismatch that had nothing to do with the data.
+* -text
+
+# Shell scripts are the one exception: they must be LF everywhere or the
+# cluster's interpreter line fails with "bad interpreter". They are never hashed
+# as data artifacts, so normalising them is safe.
+*.sh text eol=lf

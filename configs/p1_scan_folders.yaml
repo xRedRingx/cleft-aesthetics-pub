@@ -1,0 +1,43 @@
+# DIAGNOSTIC 1 of 2 — run this BEFORE configs/p1_build_manifest.yaml.
+#
+# Read-only. Walks the patient folder tree and prints an inventory: how many
+# folders, how they are numbered, where the gaps are, how many images each holds,
+# and anything it did not expect to find.
+#
+# Why bother: folderscan.py has never seen the real tree. A stray file, an
+# unexpected extension, a nested directory, or a filename whose number is not
+# where we assume would otherwise surface half way through the build, after the
+# artifact directory has been created. This costs one short job and finds those
+# for the price of reading a directory listing.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p1_scan_folders.yaml"
+#
+# [CHANGED 2026-09-05] The path used to live under task:, not inputs:, and the
+# note here justified it: a diagnostic runs before the hash round trip that a
+# declared input requires, and produces no artifact any result depends on.
+# **The first half is answered by the placeholder convention** -- declare the
+# input with an all-zero rollup and let the declare pass fill it, which is how
+# every other config bootstraps. The second half was never the point: the
+# hazard is not what the diagnostic WRITES, it is what it READS. A cohort
+# artifact opened on the strength of a path alone is unverified whether or not
+# anything cites the output. See src/cleft/data/diagnostics.py.
+#
+# tier is dev: this is a look, not a result, and nothing cites it.
+
+schema_version: 1
+phase: p1
+tier: dev
+seed: 1337
+
+inputs:
+  - name: patient_folders
+    path: ${CLEFT_PHOTOS}
+    # Carried from configs/p1_build_manifest.yaml -- the SAME
+    # artifact, so the same rollup. Guard 3 is live here.
+    rollup_sha256: c38b24f88c2f69945b4296665346ecb9141d2f424622e7b3775c3bffabb04f1b
+
+task:
+  kind: scan_folders
+  # The NAME of a declared input, not a path.
+  patient_folders: patient_folders

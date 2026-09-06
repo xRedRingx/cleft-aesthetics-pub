@@ -1,0 +1,22 @@
+# THE PRETRAINED INIT, FROZEN — SR-GNN's Xception body. See
+# roadb_init_snapshot_vit_b16.yaml for the full reasoning.
+#
+# Snapshots legacy_xception at num_classes=0 into data/inits/init_srgnn_v1/.
+# NOTE: the graph backbones' pretrain path does NOT consume a declared init
+# yet — their bodies are built inside their own assemblies, and the loading
+# route is the recorded follow-up (task_pretrain refuses the declaration
+# until it exists, so the artifact cannot be claimed unread). The snapshot
+# is built NOW so the upstream bytes are captured before they can drift
+# again.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/roadb_init_snapshot_srgnn.yaml"
+
+schema_version: 1
+phase: roadb_p6
+tier: keeper
+seed: 1337
+
+task:
+  kind: snapshot_pretrained_init
+  backbone: srgnn

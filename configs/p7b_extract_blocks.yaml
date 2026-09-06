@@ -1,0 +1,122 @@
+# PHASE 7B — THE POOLING AXIS: TWELVE INTERMEDIATE-BLOCK REPRESENTATIONS.
+#
+# ----------------------------------------------------------------------------
+# WHY THIS EXTRACTION EXISTS
+# ----------------------------------------------------------------------------
+# Half of Phase 7B's pre-registered budget is the pooling axis
+# (`phase7b.POOLING_AXIS`), and until now none of it could run: `extract_
+# features` took backbone / init / geometry and returned the FINAL pooled
+# representation, with no axis for depth or for how a block's token sequence
+# is reduced to a vector.
+#
+# **[LITERATURE]** intermediate layers often transfer better than the last for
+# tasks unlike the pretraining objective. ImageNet's final block is optimised
+# for an object-category decision; judging a surgical outcome is not that
+# decision, so intermediate representations plausibly transfer better. It is
+# the axis the brief expects most from, and it gets half the budget.
+#
+# ----------------------------------------------------------------------------
+# THE FINAL NORM IS APPLIED AT EVERY DEPTH
+# ----------------------------------------------------------------------------
+# `model.norm` runs after the SELECTED block, not only after the twelfth.
+# Without that the axis would vary depth AND normalisation together, and a
+# difference between block 6 and block 12 could not be attributed to either —
+# the one-factor rule the whole ladder rests on, in a place nothing downstream
+# would notice it had been broken. It is also what timm's own
+# `forward_intermediates(norm=True)` does, so the representation is the
+# conventional one rather than this project's invention.
+#
+# ----------------------------------------------------------------------------
+# THE SELF-CHECK, AND IT IS FREE
+# ----------------------------------------------------------------------------
+# At block 12 with the class token this is the SAME representation the final
+# pooled extraction returns — timm's `num_classes=0` forward for ViT-B/16 is
+# the class token after `model.norm`. So `vit_b16__imagenet__g1__block12_cls`
+# must equal the already-extracted, already-hashed `vit_b16__imagenet__g1`
+# BIT FOR BIT, and `reproduces` asserts exactly that before the run finishes.
+#
+# That validates the whole intermediate path against known-good data at build
+# time. If it fails, every other depth in this batch is suspect and none of
+# them should be consumed — which is why it aborts rather than warns.
+#
+# **The two directories' ROLLUPS will differ, and that is correct.** A rollup
+# covers every file including metadata.json, and the produced set records
+# `block` and `token` where the reference records None — so bit-identical
+# arrays land under different digests. The check compares `values.npy` element
+# for element, which is the quantity the claim is about. A reader comparing
+# rollups instead would conclude the reproduction failed; `metrics.json`
+# carries the same warning beside the result.
+#
+# ----------------------------------------------------------------------------
+# A NEW VERSION, NOT AN ADDITION
+# ----------------------------------------------------------------------------
+# `embeddings_g1_ladder_v1` is published and holds the Stage D1 batch, and
+# `task_extract_embeddings` refuses an out_version whose directory exists
+# (PLAN §2.6). The twelve go into their own version, whose rollup is declared
+# by exactly one config.
+#
+# No checkpoint input: the init is `imagenet`, so the factory's pretrained
+# weights ARE the init. `extract_features` refuses block/token on a pretrained
+# init for that reason — intermediate extraction builds the backbone from its
+# pretrained weights and loads no checkpoint, so a pretrained init there would
+# silently read the wrong model.
+#
+# AFTERWARDS: run `scripts/declare_ladder_inputs.py`, paste the twelve rollups
+# into the search config, and `phase7b.verify_available` stops refusing.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p7b_extract_blocks.yaml"
+
+schema_version: 1
+phase: p7b
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+  # The reference the block-12 CLS set must reproduce bit-for-bit. Verified
+  # 2026-08-02 with the Stage D1 batch; guard 3 re-verifies it before the run.
+  - name: reference_vit_final
+    path: /home/user/codex/cleft-aesthetics/data/embeddings/embeddings_g1_ladder_v1/vit_b16__imagenet__g1
+    rollup_sha256: ba4b12535f60aca4cc679246a60ecbcdc880c5ca66319937126e4f85c632d7ab
+
+task:
+  kind: extract_embeddings
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+
+  out_version: embeddings_p7b_blocks_v1
+  batch_size: 32
+
+  # LayerNorm carries no running statistics; the per-fold machinery is for the
+  # graph backbones, and extract_features refuses to combine it with this axis.
+  per_fold_bn_reestimation: false
+
+  # Six depths x two pooling rules = the twelve of phase7b.POOLING_AXIS.
+  sets:
+    - {backbone: vit_b16, init: imagenet, geometry: g1, block: 2, token: cls}
+    - {backbone: vit_b16, init: imagenet, geometry: g1, block: 2, token: mean_patch}
+    - {backbone: vit_b16, init: imagenet, geometry: g1, block: 4, token: cls}
+    - {backbone: vit_b16, init: imagenet, geometry: g1, block: 4, token: mean_patch}
+    - {backbone: vit_b16, init: imagenet, geometry: g1, block: 6, token: cls}
+    - {backbone: vit_b16, init: imagenet, geometry: g1, block: 6, token: mean_patch}
+    - {backbone: vit_b16, init: imagenet, geometry: g1, block: 8, token: cls}
+    - {backbone: vit_b16, init: imagenet, geometry: g1, block: 8, token: mean_patch}
+    - {backbone: vit_b16, init: imagenet, geometry: g1, block: 10, token: cls}
+    - {backbone: vit_b16, init: imagenet, geometry: g1, block: 10, token: mean_patch}
+    - {backbone: vit_b16, init: imagenet, geometry: g1, block: 12, token: cls}
+    - {backbone: vit_b16, init: imagenet, geometry: g1, block: 12, token: mean_patch}
+
+  # The free self-check. Aborts the run if the intermediate path does not
+  # reproduce the final pooled extraction exactly at the last block.
+  reproduces:
+    - set: vit_b16__imagenet__g1__block12_cls
+      input: reference_vit_final

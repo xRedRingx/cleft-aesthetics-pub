@@ -1,0 +1,80 @@
+# PHASE 7 — THE ONE EXTRACTION STAGE C0 NEEDS.
+#
+# ----------------------------------------------------------------------------
+# WHY ONE SET, AND WHY IT DOES NOT EXIST YET
+# ----------------------------------------------------------------------------
+# `embedding_plan` derives G1 sets only for Stage C's masked cells, because the
+# ladder runs at G2 and Stage C was the only G1 question. Stage C0 asks a
+# different one and needs `vit_b16__scut_original__g1`.
+#
+# **Stage C's cells consume DIFFERENT checkpoints.** Masked inits are
+# geometry-bound (`embeddings.check_init_geometry`), so its G1 cell takes
+# masked_g1 and its G2 cell takes masked_g2 — two checkpoints with measured
+# pretraining quality 0.7893 and 0.8306. Stage C therefore measures a matched
+# PIPELINE, not geometry, and cannot test the tiling prediction or separate a
+# geometry×init interaction from masked_g1 simply being the weakest checkpoint
+# of the twelve.
+#
+# **`scut_original` is NOT geometry-bound.** One `original` checkpoint serves
+# both geometries, so `vit_b16 scut_original g1` against the existing
+# `g2` arm varies geometry ALONE on pretrained weights. Together with the
+# ImageNet pair (0.2521 G1 against 0.1347 G2, same weights both sides) that
+# says whether the pure-geometry effect depends on the init.
+#
+# ----------------------------------------------------------------------------
+# A NEW VERSION, NOT AN ADDITION
+# ----------------------------------------------------------------------------
+# `data/embeddings/embeddings_v1` is published and immutable (PLAN §2.6), so
+# this cannot be dropped into it. It extracts into its own version holding
+# exactly one set — small, and its rollup is declared by exactly one config.
+#
+# `per_fold_bn_reestimation` is OFF: this is a transformer, its normalisation
+# is LayerNorm, and there are no running statistics to re-estimate. The
+# per-fold machinery exists for the graph backbones.
+#
+# ----------------------------------------------------------------------------
+# AFTERWARDS
+# ----------------------------------------------------------------------------
+# Run `scripts/declare_ladder_inputs.py`, paste the one new rollup into
+# `ladder.DECLARED_EMBEDDING_HASHES`, and regenerate with
+# `scripts/generate_ladder_configs.py`. Until then guard 3 refuses
+# `p7_c0_vit_b16_scut_original_g1`, which is the placeholder working.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p7_extract_g1_control.yaml"
+
+schema_version: 1
+phase: p7
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+  - name: ckpt_vit_b16_original
+    path: /home/user/codex/cleft-aesthetics/runs/keeper/p6/p6_pretrain_vit_b16_original__5e927402__p6-pt-vit-original-v2/pretrained.npz
+    rollup_sha256: 3ff967b230aaa0e609d5a8c421a1a9aa67edbfe2dedba6faabac9f9bfc57dc86
+
+task:
+  kind: extract_embeddings
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+
+  out_version: embeddings_g1_control_v1
+  batch_size: 32
+
+  # LayerNorm carries no running statistics; the per-fold machinery is for the
+  # graph backbones.
+  per_fold_bn_reestimation: false
+
+  sets:
+    - backbone: vit_b16
+      init: scut_original
+      geometry: g1

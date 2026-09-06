@@ -1,0 +1,35 @@
+# ROAD B PHASE 6 — GATE 3: GRAPH REGION GEOMETRY AT THE NEW SIZES
+#
+# Measured, not reasoned about: the non-square probe's defect class was
+# fractions preserved, sampled regions not. Two backbones, two contracts,
+# each gated on its own (R2):
+#
+#   SR-GNN   26 fixed-pixel boxes in a feature map upsampled to a FIXED
+#            42x42, plus the whole image -- input-size-invariant BY
+#            CONSTRUCTION, asserted: 27 regions at every size, box buffer
+#            untouched. Input size changes only how interpolated the 42x42
+#            map is: 6.0x from 224's 7x7, 1.75x from 768's 24x24. The
+#            CleftGNN parallel: upsampling-the-map and feeding-more-pixels
+#            COMPOSE.
+#   AG-Net   image-space regions (SIFT + seeded GMM), normalised boxes.
+#            Placement varies with resolution BY DESIGN -- detection is
+#            resolution-dependent -- so the gate asserts the CONTRACT
+#            (count law, [0,1] bounds, full forward) and REPORTS the drift.
+#            Gating on placement identity would refuse a property as a
+#            defect.
+#
+# No inputs: synthetic deterministic content, one image at three scales so
+# the drift measures resolution rather than content.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/roadb_p6_graph_geometry_gate.yaml"
+
+schema_version: 1
+phase: roadb_p6
+tier: keeper
+seed: 1337
+
+task:
+  kind: roadb_graph_geometry_gate
+  sizes: [224, 512, 768]
+  backbones: [srgnn, agnet]

@@ -1,0 +1,34 @@
+# The TEXT workbook on its own — histogram and normalised headers, no comparison.
+#
+# configs/p1_inspect_scoresheet.yaml already reports whether the two forms are
+# identical, in one line, so this is not needed for the equivalence check. It
+# exists for when you want to look at the text form directly: its own grade
+# histogram, its own normalised rater columns, its own row count.
+#
+# That matters because the two files differ in how they SPELL a grade, and the
+# header quirks are per-file. If header matching ever fails on this one and not
+# the other, this is where it shows.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p1_inspect_scoresheet_text.yaml"
+#
+# Note: do NOT try to reuse another config with --out /dev/null. RunContext
+# builds a run directory under --out, and a device node is not a directory. Point
+# --out at a real path, or leave it at the default.
+
+schema_version: 1
+phase: p1
+tier: dev
+seed: 1337
+
+inputs:
+  - name: scoresheet_text
+    path: ${CLEFT_SCORESHEET_TEXT}
+    # Carried from configs/p1_build_manifest.yaml -- the SAME
+    # artifact, so the same rollup. Guard 3 is live here.
+    rollup_sha256: d5239cb1c5adea31ba6d9b9644ce6bfdb7a6390b8a58e819027239c7dc8ad1d2
+
+task:
+  kind: inspect_scoresheet
+  # The NAME of a declared input, not a path.
+  scoresheet: scoresheet_text

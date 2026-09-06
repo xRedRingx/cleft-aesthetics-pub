@@ -1,0 +1,80 @@
+# PHASE 7C — EXIT CRITERION 5: THE PROTECTION MASK, ON REAL CROPS.
+#
+# ----------------------------------------------------------------------------
+# WHY THIS RUNS BEFORE ANY ARM
+# ----------------------------------------------------------------------------
+# **A protect-list covering the wrong pixels passes every test in the suite.**
+# The region names resolve against `generators.py`, the mask is soft, the boxes
+# sit inside the frame, the arm trains and reports a plausible number — and it
+# is wrong in the only way that matters. Region names are a specification;
+# where they land on a face is a fact about the mapping, and the mapping is
+# checked by eye or not at all.
+#
+# That is the segmentation gate's finding, five runs over: the pre-declared
+# criteria narrowed what was worth looking at and **the contact sheet decided**,
+# including once where screen and sheet disagreed outright (PLAN Part 5).
+#
+# **Arm 0 does not run until this is reviewed.**
+#
+# ----------------------------------------------------------------------------
+# WHAT IT RENDERS
+# ----------------------------------------------------------------------------
+# Three panels per patient, one row each:
+#
+#   crop        what the arm starts from
+#   protected   the strength map as a cyan tint, alpha following the falloff —
+#               so the SOFTNESS is visible rather than asserted, and a hard
+#               mask would be distinguishable from a soft one on the sheet
+#   augmented   one sample at the FULL policy (arm 5), so the review answers
+#               "does this still look like a plausible clinical photograph"
+#               as well as "is the right area protected"
+#
+# Cyan, not the magenta `render.MASK_COLOUR` already means trapezium boundary
+# on every Phase 2 sheet — two meanings for one colour on sheets a reviewer
+# sees side by side is how a boundary gets read as a protected region.
+#
+# ----------------------------------------------------------------------------
+# IT RENDERS THE PIXELS THE ARM WILL SEE
+# ----------------------------------------------------------------------------
+# Built from `staged_v1` and its `geometry.csv` — the same artifact, the same
+# per-patient content boxes, and the same `protection_masks_for` the arms call.
+# Not re-staged from the folders: a sheet built on a parallel staging path
+# could look right while the arm saw something else, which is the failure it
+# exists to catch.
+#
+# The sample is drawn at (seed, fold 0, epoch 0), so the sheet is reproducible
+# and a review can be returned to.
+#
+# The PNG is CLUSTER-ONLY — it renders patient faces. `metrics.json` carries
+# counts and fractions only and is SHAREABLE.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p7c_contact_sheet.yaml"
+
+schema_version: 1
+phase: p7c
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: manifest_v1
+    path: /home/user/codex/cleft-aesthetics/data/manifests/cleft_v1
+    rollup_sha256: fb5177b31f2aa61bfac25f8a528004bf2075adb83128516a002e29eafbee0aff
+
+  - name: staged_v1
+    path: /home/user/codex/cleft-aesthetics/data/staged/staged_v1
+    rollup_sha256: a06401b9b474c241182e07d697939a8903bdf92c9c470fdfe7a423add155a406
+
+task:
+  kind: augmentation_contact_sheet
+
+  manifest_artifact: manifest_v1
+  staged_artifact: staged_v1
+
+  # The arms run at G1 — the baseline cell (ViT-B/16, ImageNet, G1).
+  geometry: g1
+
+  # Spread across the three reporting classes by contact.select_patients,
+  # deterministically: a sheet showing a different set each run would make
+  # "the regions look right" unrepeatable.
+  n_patients: 12

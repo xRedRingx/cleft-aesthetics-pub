@@ -1,0 +1,17 @@
+# THE PRETRAINED INIT, FROZEN — AG-Net's ResNet-50 body (IMAGENET1K_V2).
+# See roadb_init_snapshot_vit_b16.yaml for the full reasoning, and
+# roadb_init_snapshot_srgnn.yaml for the graph-backbone caveat: the
+# consumption route is the recorded follow-up, the snapshot captures the
+# upstream bytes now.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/roadb_init_snapshot_agnet.yaml"
+
+schema_version: 1
+phase: roadb_p6
+tier: keeper
+seed: 1337
+
+task:
+  kind: snapshot_pretrained_init
+  backbone: agnet

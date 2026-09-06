@@ -1,0 +1,121 @@
+# PHASE 6 — SCUT PRETRAINING: AG-Net / the Phase 2 GRID scheme (27 multi-scale patches) / MASKED SCUT, G1 (trapezium, white corners).
+#
+# One of THIRTY pretraining configs. Transformers form a 2x3 lattice
+# (backbone x source, region_scheme none); graph backbones a 2x4x3 lattice
+# (backbone x region_scheme x source). Within each block every config differs
+# from its lattice neighbours in EXACTLY ONE task field, and every non-axis
+# field is identical across all thirty -- asserted by tests/test_pretrain.py.
+# The shared reasoning lives in p6_pretrain_vit_b16_original.yaml.
+#
+# ----------------------------------------------------------------------------
+# THE SCHEME AXIS [DECIDED 2026-07-31]
+# ----------------------------------------------------------------------------
+# Region scheme is a PRETRAINING axis for the graph backbones: the graph
+# layers train on whatever node structure the scheme provides, so the SAME
+# scheme must be used in pretraining and cleft fine-tuning -- the layers see
+# consistent node structure throughout. "native" is the architecture's own
+# generator; grid/anatomy/random are Phase 2's generators, placed through
+# each face's RECORDED content box (the per-image mapping the Phase 4 patch
+# probes used, aspect-ratio-sensitive by construction). For the original
+# source the full-square (G2) parameterisation applies -- an unmasked face
+# has no trapezium.
+#
+# ----------------------------------------------------------------------------
+# [MEASURED, PLAN §4.4] SCHEME COMPARISONS ARE READ AT G2
+# ----------------------------------------------------------------------------
+# At G1 the schemes carry different background exposure: grid has white in 10
+# of 27 patches (up to 49.9%), anatomy's lateral_orbit regions are 76.4%
+# outside the mask at the frozen scale, random has none. A G1 scheme
+# difference is therefore partly a background-exposure difference. The G1
+# runs exist for the geometry axis; the SCHEME axis is compared at G2. That
+# constrains how these runs are read, not whether they exist -- recorded here
+# rather than remembered.
+#
+# GRAPH BACKBONE, implemented 2026-07-31: build() carries the verified
+# construction (30,742,924 at CUB outputs, asserted per component) with the
+# Stage 1 forwards; normalization stamped at build. Determinism: see the
+# deterministic field below and models/agnet.py TRAINING_DETERMINISM.
+#
+# The masked artifact input carries the rollup from p5-masked-scut-3's
+# metrics.json (artifact.rollup_sha256_for_configs) -- the build's own record.
+# Masked runs are compared against THIS backbone's SAME-SCHEME original run,
+# never the published band: the mask removes information the rating depends on.
+#
+#   bash -lc "cd /home/user/codex/cleft-aesthetics && PYTHONPATH=src \
+#     python -m cleft.run --config configs/p6_pretrain_agnet_grid_masked_g1.yaml"
+
+schema_version: 1
+phase: p6
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: scut_root
+    path: ${CLEFT_SCUT_ROOT}
+    rollup_sha256: 1041ceed0ef458e97c8be845eda30cf7957067fa730a4975a0f83bd8ed4947ec
+
+  # Referenced by this NAME from the task, by convention -- see
+  # p6_pretrain_vit_b16_masked_g1.yaml.
+  - name: masked_scut
+    path: /home/user/codex/cleft-aesthetics/data/scut/masked_v1
+    # [MEASURED 2026-07-31] artifact.rollup_sha256_for_configs from run
+    # p5-masked-scut-3 -- the artifact build's own metrics.json (5,499
+    # faces, both geometries, 1.66 GB). Guard 3 verifies it at launch.
+    rollup_sha256: 7c08f8657afeeb49fd34377fba9cd20241b2359a208d418a1dfa6399dc43708b
+
+task:
+  kind: pretrain
+
+  scut_root: scut_root
+
+  # The lattice axes. Everything below them is shared across all thirty.
+  backbone: agnet
+  source: masked_g1
+  region_scheme: grid
+
+  # The official split after CM152 exclusion; the run refuses a disagreement.
+  expect_train: 3300
+  expect_test: 2199
+
+  # [DECIDED 2026-07-31] FIXED 30-epoch budget, best-checkpoint selection by
+  # inner_val_pcc -- NO early stopping, and deliberately no patience field.
+  # The four SR-GNN scheme originals showed patience terminating on noise in
+  # a flat MSE region (anatomy epochs 5 vs 7: 2.3e-5 apart): run length
+  # tracked luck, not scheme, and none of the eight pre-policy runs had
+  # converged -- inner-val PCC was still climbing at every stopping point.
+  # The replay over all eight curves showed a monitor switch only moves where
+  # the noise bites. A fixed budget makes the arms comparable BY CONSTRUCTION
+  # and the cost knowable in advance; those eight runs are SUPERSEDED (kept,
+  # not deleted -- their curves are the evidence for this decision).
+  #
+  # This does NOT contradict Phase 3 gate 4: the void ladder's fixed budget
+  # measured post-collapse endpoints on 152 cleft samples (peaks at epochs
+  # 2-11, decay to ~0 in 20/20 fold-runs); on SCUT's 3,300 there is no
+  # collapse -- PCC climbs monotonically in all eight curves. Early stopping
+  # STAYS for the cleft ladder, where collapse is the documented behaviour.
+  # N=30 covers every observed run except SR-GNN original's 34, and PCC has
+  # largely plateaued by then. Selection on inner_val_pcc matches the primary
+  # metric; legitimate because inner-val is carved from the TRAIN side and
+  # the test set is disjoint, touched once.
+  epochs: 30
+  inner_val_frac: 0.1
+  monitor: inner_val_pcc
+
+  # [DECIDED 2026-07-31, from image measurements] FALSE, and settled: flag-off
+  # in the image, vit_b16/swin_b/srgnn are BITWISE (repeat-grad and post-
+  # restore step 0.0) so the flag buys them nothing -- and it CANNOT fix
+  # agnet there: the deterministic roi_align substitution needs
+  # torch.compile -> inductor -> a C++ compiler the image does not have
+  # (InvalidCxxCompiler, measured). AG-Net's recorded property instead:
+  # deterministic to ~2.3e-05 (post-restore 2.26e-05 image / 2.31e-05 local),
+  # its resume check is a tolerance, and any AG-Net delta needs its own seed
+  # band measured under that condition. models/{agnet,srgnn}.py
+  # TRAINING_DETERMINISM carry the full record; if this is ever set true, the
+  # loop routes through the frozen determinism.configure (CUBLAS workspace).
+  deterministic: false
+
+  learning_rate: 0.0001
+  weight_decay: 0.01
+  batch_size: 32
+
+  checkpoint_every: 1

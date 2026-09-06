@@ -1,0 +1,28 @@
+# The keeper-tier smoke config. Identical to smoke.yaml except for the tier.
+#
+# It exists so that the keeper path can be exercised from a TRACKED file. Running
+# a keeper config out of /tmp produces a run that is citable by tier but not
+# reproducible: the run directory records the config verbatim, but nothing can
+# recover which config that was, or reproduce it later, because it never existed
+# in git. A keeper run whose config is not at a commit is a provenance hole of
+# exactly the kind Phase 0 was built to close.
+#
+# Run it with:
+#   python -m cleft.run --config configs/smoke_keeper.yaml
+#
+# It will refuse to start on a dirty tree. That is the point.
+
+schema_version: 1
+phase: p0
+tier: keeper
+seed: 1337
+
+inputs:
+  - name: values
+    path: data/smoke/v1
+    # Regenerate with: python scripts/make_smoke_input.py
+    rollup_sha256: 031884514ea94d4061f269e81f6208d685ca0c9a3f0ced7df5ba7a0f15f60854
+
+task:
+  kind: smoke
+  n_samples: 64
